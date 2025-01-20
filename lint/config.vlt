@@ -1,0 +1,13 @@
+`verilator_config
+
+lint_off -rule LATCH
+lint_off -rule UNOPTFLAT
+
+lint_off -file "../vendor/*.sv"
+lint_off -file "../vendor/axi/src/*.sv"
+lint_off -file "../vendor/axi_slice/src/*.sv"
+lint_off -file "../vendor/axi2apb/src/*.sv"
+lint_off -file "../vendor/deprecated/*.sv"
+lint_off -file "../vendor/common_cells/src/*.sv"
+lint_off -file "../vendor/common_cells/src/deprecated/*.sv"
+lint_off -file "../vendor/register_interface/src/src/*.sv"
