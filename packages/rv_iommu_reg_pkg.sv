@@ -13,8 +13,8 @@
 //            - Register offsets
 //            - Registers legal writability masks
 
-`ifndef RV_IOMMU_REG_PKG_DEF
-`define RV_IOMMU_REG_PKG_DEF
+`ifndef RV_IOMMU_REG_PKG
+`define RV_IOMMU_REG_PKG
 
 package rv_iommu_reg_pkg;
 
@@ -100,6 +100,9 @@ package rv_iommu_reg_pkg;
     struct packed {
       logic        q;
     } pd20;
+    struct packed {
+      logic        q;
+    } qosid;
   } iommu_reg2hw_capabilities_reg_t;
 
   typedef struct packed {
@@ -250,7 +253,7 @@ package rv_iommu_reg_pkg;
     } dv_gscv;
     struct packed {
       logic        q;
-    } idt;
+    } idtype;
     struct packed {
       logic        q;
     } of;

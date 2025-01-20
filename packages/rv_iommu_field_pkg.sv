@@ -8,8 +8,8 @@
 //
 // IOMMU Register field package: Contains SW access permissions
 
-`ifndef RV_IOMMU_FIELD_PKG_DEF
-`define RV_IOMMU_FIELD_PKG_DEF
+`ifndef RV_IOMMU_FIELD_PKG
+`define RV_IOMMU_FIELD_PKG
 
 package rv_iommu_field_pkg;
 
