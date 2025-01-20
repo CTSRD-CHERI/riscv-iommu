@@ -1,0 +1,101 @@
+# Copyright © 2025 Manuel Rodríguez & Zero-Day Labs, Lda.
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+
+# Licensed under the Solderpad Hardware License v 2.1 (the “License”); 
+# you may not use this file except in compliance with the License, 
+# or, at your option, the Apache License version 2.0. 
+# You may obtain a copy of the License at https://solderpad.org/licenses/SHL-2.1/.
+# Unless required by applicable law or agreed to in writing, 
+# any work distributed under the License is distributed on an “AS IS” BASIS, 
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+# See the License for the specific language governing permissions and limitations under the License.
+#
+# Author: Manuel Rodríguez <manuel.cederog@gmail.com>
+# Date: 20/01/2025
+# Acknowledges: SSRC - Technology Innovation Institute (TII)
+#
+# Description: RISC-V IOMMU Bender package descriptor.
+
+package:
+  name: riscv-iommu
+  authors:
+    - "Manuel Rodríguez <manuel.cederog@gmail.com>"
+
+export_include_dirs:
+  - vendor/axi/include
+  - vendor/common_cells/include
+  - vendor/register_interface/include
+  - include
+
+sources:
+
+  - packages/rv_iommu_cfg_pkg.sv
+  - packages/rv_iommu_pkg.sv
+  - packages/rv_iommu_field_pkg.sv
+  - packages/rv_iommu_reg_pkg.sv
+  - vendor/common_cells/src/cf_math_pkg.sv
+  - vendor/axi/src/axi_pkg.sv
+
+  - vendor/axi/src/axi_atop_filter.sv
+  - vendor/axi/src/axi_demux_simple.sv
+  - vendor/axi/src/axi_demux.sv
+  - vendor/axi/src/axi_err_slv.sv
+
+  - vendor/common_cells/src/deprecated/fifo_v2.sv
+  - vendor/common_cells/src/fifo_v3.sv
+  - vendor/common_cells/src/lzc.sv
+  - vendor/common_cells/src/counter.sv
+  - vendor/common_cells/src/delta_counter.sv
+  - vendor/common_cells/src/rr_arb_tree.sv
+  - vendor/common_cells/src/spill_register_flushable.sv
+  - vendor/common_cells/src/spill_register.sv
+  - vendor/common_cells/src/stream_arbiter_flushable.sv
+  - vendor/common_cells/src/stream_arbiter.sv
+  - vendor/common_cells/src/stream_demux.sv
+  - vendor/common_cells/src/stream_fifo.sv
+  - vendor/common_cells/src/stream_mux.sv
+
+  - vendor/axi_slice/src/axi_ar_buffer.sv
+  - vendor/axi_slice/src/axi_aw_buffer.sv
+  - vendor/axi_slice/src/axi_b_buffer.sv
+  - vendor/axi_slice/src/axi_r_buffer.sv
+  - vendor/axi_slice/src/axi_w_buffer.sv
+  - vendor/axi_slice/src/axi_single_slice.sv
+
+  - vendor/modified/fifo.sv
+  - vendor/modified/rv_iommu_axi2apb_64_32.sv
+
+  - rtl/ext_interfaces/rv_iommu_ds_if.sv
+  - rtl/ext_interfaces/rv_iommu_prog_if.sv
+
+  - rtl/transaction_controller/rv_iommu_axi_bc.sv
+  - rtl/transaction_controller/rv_iommu_ign_slv.sv
+  - rtl/transaction_controller/rv_iommu_mrif_handler.sv
+  - rtl/transaction_controller/rv_iommu_trans_ctl_wrap.sv
+
+  - rtl/software_interface/regmap/rv_iommu_field_arb.sv
+  - rtl/software_interface/regmap/rv_iommu_field.sv
+  - rtl/software_interface/regmap/rv_iommu_regmap.sv
+
+  - rtl/software_interface/rv_iommu_cq_handler.sv
+  - rtl/software_interface/rv_iommu_dbg_if_ctl.sv
+  - rtl/software_interface/rv_iommu_fault_arbiter.sv
+  - rtl/software_interface/rv_iommu_fq_handler.sv
+  - rtl/software_interface/rv_iommu_hpm.sv
+  - rtl/software_interface/rv_iommu_msi_ig.sv
+  - rtl/software_interface/rv_iommu_wsi_ig.sv
+  - rtl/software_interface/rv_iommu_sw_if_wrap.sv
+
+  - rtl/translation_logic/rv_iommu_ddtc.sv
+  - rtl/translation_logic/rv_iommu_ddtw.sv
+  - rtl/translation_logic/rv_iommu_iotlb.sv
+  - rtl/translation_logic/rv_iommu_mrifc.sv
+  - rtl/translation_logic/rv_iommu_msiptw.sv
+  - rtl/translation_logic/rv_iommu_pdtc.sv
+  - rtl/translation_logic/rv_iommu_pdtw.sv
+  - rtl/translation_logic/rv_iommu_ptw.sv
+  - rtl/translation_logic/rv_iommu_tl_wrap.sv
+
+  - rtl/rv_iommu_top.sv
+  - rtl/rv_iommu_wrap.sv
+      
