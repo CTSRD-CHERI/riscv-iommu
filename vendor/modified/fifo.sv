@@ -10,6 +10,10 @@
 
 // Author: Florian Zaruba <zarubaf@iis.ee.ethz.ch>
 
+// Modified by Zero-Day Labs Lda. from original source whose copyright belongs 
+// to ETH Zurich and University of Bologna. Modifications were done to match 
+// module name with file name
+
 /* verilator lint_off DECLFILENAME */
 module fifo #(
     parameter bit          FALL_THROUGH = 1'b0, // fifo is in fall-through mode

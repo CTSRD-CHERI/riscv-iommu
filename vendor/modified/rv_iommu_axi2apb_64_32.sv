@@ -12,14 +12,16 @@
 // Davide Rossi <davide.rossi@unibo.it>
 // Florian Zaruba <zarubaf@iis.ee.ethz.ch>
 
+// Modified by Zero-Day Labs Lda. from original source whose copyright belongs 
+// to ETH Zurich and University of Bologna. Modifications were done to comply
+// with signal naming conventions (clock and reset).
+
 `define OKAY   2'b00
 `define EXOKAY 2'b01
 `define SLVERR 2'b10
 `define DECERR 2'b11
 
-/* verilator lint_off WIDTH */
-
-module axi2apb_64_32 #(
+module rv_iommu_axi2apb_64_32 #(
     parameter int unsigned AXI4_ADDRESS_WIDTH = 32,
     parameter int unsigned AXI4_RDATA_WIDTH   = 64,
     parameter int unsigned AXI4_WDATA_WIDTH   = 64,
@@ -32,9 +34,9 @@ module axi2apb_64_32 #(
     parameter int unsigned APB_ADDR_WIDTH     = 12
 )
 (
-    input logic                           ACLK,
-    input logic                           ARESETn,
-    input logic                           test_en_i,
+    input logic                            clk_i,
+    input logic                            rst_ni,
+    input logic                            test_en_i,
     // ---------------------------------------------------------
     // AXI TARG Port Declarations ------------------------------
     // ---------------------------------------------------------
@@ -215,8 +217,8 @@ module axi2apb_64_32 #(
         .USER_WIDTH   ( AXI4_USER_WIDTH    ),
         .BUFFER_DEPTH ( BUFF_DEPTH_SLAVE   )
     ) slave_aw_buffer_i (
-       .clk_i           ( ACLK        ),
-       .rst_ni          ( ARESETn     ),
+       .clk_i           ( clk_i       ),
+       .rst_ni          ( rst_ni      ),
        .test_en_i       ( test_en_i   ),
        .slave_valid_i   ( AWVALID_i   ),
        .slave_addr_i    ( AWADDR_i    ),
@@ -252,8 +254,8 @@ module axi2apb_64_32 #(
         .USER_WIDTH     ( AXI4_USER_WIDTH    ),
         .BUFFER_DEPTH   ( BUFF_DEPTH_SLAVE   )
     ) slave_ar_buffer_i (
-       .clk_i           ( ACLK       ),
-       .rst_ni          ( ARESETn    ),
+       .clk_i           ( clk_i      ),
+       .rst_ni          ( rst_ni     ),
        .test_en_i       ( test_en_i  ),
        .slave_valid_i   ( ARVALID_i  ),
        .slave_addr_i    ( ARADDR_i   ),
@@ -287,8 +289,8 @@ module axi2apb_64_32 #(
         .USER_WIDTH   ( AXI4_USER_WIDTH  ),
         .BUFFER_DEPTH ( BUFF_DEPTH_SLAVE )
     ) slave_w_buffer_i (
-         .clk_i          ( ACLK      ),
-         .rst_ni         ( ARESETn   ),
+         .clk_i          ( clk_i     ),
+         .rst_ni         ( rst_ni    ),
          .test_en_i      ( test_en_i ),
          .slave_valid_i  ( WVALID_i  ),
          .slave_data_i   ( WDATA_i   ),
@@ -309,8 +311,8 @@ module axi2apb_64_32 #(
          .USER_WIDTH   ( AXI4_USER_WIDTH  ),
          .BUFFER_DEPTH ( BUFF_DEPTH_SLAVE )
     ) slave_r_buffer_i (
-         .clk_i          ( ACLK       ),
-         .rst_ni         ( ARESETn    ),
+         .clk_i          ( clk_i      ),
+         .rst_ni         ( rst_ni     ),
          .test_en_i      ( test_en_i  ),
          .slave_valid_i  ( RVALID     ),
          .slave_data_i   ( RDATA      ),
@@ -333,8 +335,8 @@ module axi2apb_64_32 #(
         .USER_WIDTH     ( AXI4_USER_WIDTH  ),
         .BUFFER_DEPTH   ( BUFF_DEPTH_SLAVE )
     ) slave_b_buffer_i (
-        .clk_i          ( ACLK      ),
-        .rst_ni         ( ARESETn   ),
+        .clk_i          ( clk_i     ),
+        .rst_ni         ( rst_ni    ),
         .test_en_i      ( test_en_i ),
 
         .slave_valid_i  ( BVALID    ),
@@ -382,7 +384,7 @@ module axi2apb_64_32 #(
         RUSER  = ARUSER;
         RRESP  = `OKAY;
 
-        case(CS)
+        unique case(CS)
 
             WAIT_R_PREADY: begin
                 sample_AR = 1'b0;
@@ -391,7 +393,7 @@ module axi2apb_64_32 #(
 
                 if (PREADY == 1'b1) begin// APB is READY --> RDATA is AVAILABLE
                     if (ARLEN == 0) begin
-                        case (ARSIZE)
+                        unique case (ARSIZE)
                             3'h3: begin
                                 NS = SINGLE_RD_64;
                                 if (ARADDR[2:0] == 3'h4)
@@ -430,7 +432,7 @@ module axi2apb_64_32 #(
                 // There is a Pending WRITE!!
                 if (PREADY == 1'b1) begin // APB is READY --> WDATA is LAtched
                     if (AWLEN == 0) begin // single write
-                        case (AWSIZE)
+                        unique case (AWSIZE)
                             3'h3: NS = SINGLE_WR_64;
                             default: NS = SINGLE_WR;
                         endcase
@@ -451,7 +453,7 @@ module axi2apb_64_32 #(
 
                     if (PREADY == 1'b1) begin // APB is READY --> RDATA is AVAILABLE
                         if (ARLEN == 0) begin
-                            case (ARSIZE)
+                            unique case (ARSIZE)
                                 3'h3: begin
                                     NS = SINGLE_RD_64;
                                     if (ARADDR[2:0] == 4)
@@ -488,7 +490,7 @@ module axi2apb_64_32 #(
                           // There is a Pending WRITE!!
                             if (PREADY == 1'b1) begin// APB is READY --> WDATA is LAtched _APB_SLAVE_READY_
                                   if(AWLEN == 0) begin //: _SINGLE_WRITE_
-                                        case(AWSIZE)
+                                        unique case(AWSIZE)
                                             3'h3: NS = SINGLE_WR_64;
                                             default: NS = SINGLE_WR;
                                         endcase
@@ -696,8 +698,8 @@ module axi2apb_64_32 #(
     // -----------
     // Registers
     // -----------
-    always_ff @(posedge ACLK, negedge ARESETn) begin
-        if (ARESETn == 1'b0) begin
+    always_ff @(posedge clk_i, negedge rst_ni) begin
+        if (rst_ni == 1'b0) begin
             CS        <= IDLE;
             //Read Channel
             ARLEN_Q   <= '0;
@@ -722,21 +724,21 @@ module axi2apb_64_32 #(
             if (sample_RDATA_1)
                 RDATA_Q_1 <= PRDATA;
 
-            case ({sample_AW, decr_AWLEN})
+            unique case ({sample_AW, decr_AWLEN})
                 2'b00: AWLEN_Q <= AWLEN_Q;
                 2'b01: AWLEN_Q <= AWLEN_Q - 1;
                 2'b10: AWLEN_Q <= {AWLEN, 1'b0} + 1;
                 2'b11: AWLEN_Q <= {AWLEN, 1'b0};
             endcase
 
-            case ({sample_AW, incr_AWADDR})
+            unique case ({sample_AW, incr_AWADDR})
                 2'b00: AWADDR_Q <= AWADDR_Q;
                 2'b01: AWADDR_Q <= AWADDR_Q + 4;
                 2'b10: AWADDR_Q <= {AWADDR[AXI4_ADDRESS_WIDTH-1:3], 3'b000};
                 2'b11: AWADDR_Q <= {AWADDR[AXI4_ADDRESS_WIDTH-1:3], 3'b000} + 4;
             endcase
 
-            case({sample_AR, incr_ARADDR})
+            unique case({sample_AR, incr_ARADDR})
                 2'b00: ARADDR_Q <= ARADDR_Q;
                 2'b01: ARADDR_Q <= ARADDR_Q + 4;
                 2'b10: ARADDR_Q <= {ARADDR[AXI4_ADDRESS_WIDTH-1:3], 3'b000};
@@ -745,5 +747,3 @@ module axi2apb_64_32 #(
         end
     end
 endmodule
-
-/* verilator lint_on WIDTH */
