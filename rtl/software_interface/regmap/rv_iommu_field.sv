@@ -1,4 +1,4 @@
-// Copyright © 2023 Manuel Rodríguez & Zero-Day Labs, Lda.
+// Copyright © 2025 Manuel Rodríguez & Zero-Day Labs, Lda.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 // Licensed under the Solderpad Hardware License v 2.1 (the “License”); 
@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and limitations under the License.
 //
 // Author: Manuel Rodríguez <manuel.cederog@gmail.com>
-// Date: 12/10/2022
+// Date: 20/01/2025
 // Acknowledges: SSRC - Technology Innovation Institute (TII)
 //
 // Description: IOMMU Register Field module.
@@ -21,9 +21,9 @@
 module rv_iommu_field
     import rv_iommu_field_pkg::*;
     #(
-        parameter int                               DATA_WIDTH = 32,        // bit width of the register field (2-state)
-        parameter rv_iommu_field_pkg::sw_access_e   SwAccess = SwAccessRW,  // SW access permission
-        parameter logic [DATA_WIDTH-1:0]            RESVAL = '0             // reset value, 
+        parameter int                               DataWidth = 32,        // bit width of the register field (2-state)
+        parameter rv_iommu_field_pkg::sw_access_e   SwAccess = SwAccessRW, // SW access permission
+        parameter logic [DataWidth-1:0]            RESVAL = '0             // reset value, 
     )
     (
         input clk_i,
@@ -31,19 +31,19 @@ module rv_iommu_field
 
         // Signals from SW side: valid for RW, WO, W1C, W1S, W0C, RC
         // In case of RC, top module connects Read Pulse to WE. WD should be 1'b0 in this case ???
-        input we,                           // SW WE
-        input [DATA_WIDTH-1:0] wd,          // SW WD
+        input we,                          // SW WE
+        input [DataWidth-1:0] wd,          // SW WD
 
         // From HW: valid for HRW, HWO
-        input de,                           // HW WE
-        input [DATA_WIDTH-1:0] d,           // HW WD
+        input de,                          // HW WE
+        input [DataWidth-1:0] d,           // HW WD
 
         // To HW and SW Reg IF read
-        output logic qe,                    // definitive write enable
-        output logic [DATA_WIDTH-1:0] q,    // HW read port
+        output logic qe,                   // definitive write enable
+        output logic [DataWidth-1:0] q,    // HW read port
 
-        output logic [DATA_WIDTH-1:0] ds,
-        output logic [DATA_WIDTH-1:0] qs    // SW read port
+        output logic [DataWidth-1:0] ds,
+        output logic [DataWidth-1:0] qs    // SW read port
     );
 
     import rv_iommu_field_pkg::*;
@@ -51,11 +51,11 @@ module rv_iommu_field
     // Write arbiter output signals.
     // It takes WE, WD, DE, D, Q signals and yields the valid WE and WD that will cause writes to the register
     logic arb_wr_en;
-    logic [DATA_WIDTH-1:0] arb_wr_data;
+    logic [DataWidth-1:0] arb_wr_data;
 
     // Data write arbiter
     rv_iommu_field_arb #(
-        .DATA_WIDTH(DATA_WIDTH),
+        .DataWidth(DataWidth),
         .SwAccess(SwAccess)
     ) int_wr_arb(
         .we(we),
