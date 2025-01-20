@@ -1,4 +1,4 @@
-// Copyright © 2023 Manuel Rodríguez & Zero-Day Labs, Lda.
+// Copyright © 2025 Manuel Rodríguez & Zero-Day Labs, Lda.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
 // Licensed under the Solderpad Hardware License v 2.1 (the “License”); 
@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and limitations under the License.
 //
 // Author: Manuel Rodríguez <manuel.cederog@gmail.com>
-// Date: 12/10/2022
+// Date: 20/01/2025
 // Acknowledges: SSRC - Technology Innovation Institute (TII)
 //
 // Description: IOMMU Register field internal write arbiter.
@@ -21,25 +21,25 @@
 module rv_iommu_field_arb
     import rv_iommu_field_pkg::*;
     #(
-        parameter int         DATA_WIDTH = 32,
+        parameter int         DataWidth = 32,
         parameter sw_access_e SwAccess = SwAccessRW
     )
     (
         // From SW: valid for RW, WO, W1C, W1S, W0C, RC.
         // In case of RC, top connects read pulse to we.
-        input                   we,
-        input [DATA_WIDTH-1:0]  wd,
+        input                  we,
+        input [DataWidth-1:0]  wd,
 
         // From HW: valid for HRW, HWO.
-        input                   de,
-        input [DATA_WIDTH-1:0]  d,
+        input                  de,
+        input [DataWidth-1:0]  d,
 
         // From register: actual reg value. (Needed to mask input value when W1S, W1C)
-        input [DATA_WIDTH-1:0]  q,
+        input [DataWidth-1:0]  q,
 
         // To register: actual write enable and write data.
-        output logic                    wr_en,
-        output logic [DATA_WIDTH-1:0]   wr_data
+        output logic                   wr_en,
+        output logic [DataWidth-1:0]   wr_data
     );
 
     // If RW or WO, allow write (if SW is not requesting write, set WD with HW D value)
@@ -47,7 +47,7 @@ module rv_iommu_field_arb
         assign wr_en   = we | de;
         assign wr_data = (we == 1'b1) ? wd : d; // SW higher priority
         // Unused q - Prevent lint errors.
-        logic [DATA_WIDTH-1:0] unused_q;
+        logic [DataWidth-1:0] unused_q;
         assign unused_q = q;
     end
 
@@ -57,8 +57,8 @@ module rv_iommu_field_arb
         assign wr_data = d;
         // Unused we, wd, q - Prevent lint errors.
         logic                   unused_we;
-        logic [DATA_WIDTH-1:0]  unused_wd;
-        logic [DATA_WIDTH-1:0]  unused_q;
+        logic [DataWidth-1:0]  unused_wd;
+        logic [DataWidth-1:0]  unused_q;
         assign unused_we = we;
         assign unused_wd = wd;
         assign unused_q  = q;
@@ -77,7 +77,7 @@ module rv_iommu_field_arb
         // So, give a chance HW to set when SW tries to clear.
         // If both try to set/clr at the same bit pos, SW wins.
         assign wr_en   = we | de;
-        assign wr_data = (de ? d : q) & (we ? ~wd : '1);    // AND-ask input set bits (inverted) with current reg value to clear
+        assign wr_data = (de ? d : q) & (we ? ~wd : -1);    // AND-ask input set bits (inverted) with current reg value to clear
     end
     
     else if (SwAccess == SwAccessW0C) begin : gen_w0c
@@ -91,7 +91,7 @@ module rv_iommu_field_arb
         assign wr_en  = we | de;
         assign wr_data = (de ? d : q) & (we ? '0 : '1); // 
         // Unused wd - Prevent lint errors.
-        logic [DATA_WIDTH-1:0] unused_wd;
+        logic [DataWidth-1:0] unused_wd;
         assign unused_wd = wd;
     end
     
@@ -100,8 +100,8 @@ module rv_iommu_field_arb
         assign wr_data = d;
         // Unused we, wd, q - Prevent lint errors.
         logic                   unused_we;
-        logic [DATA_WIDTH-1:0]  unused_wd;
-        logic [DATA_WIDTH-1:0]  unused_q;
+        logic [DataWidth-1:0]  unused_wd;
+        logic [DataWidth-1:0]  unused_q;
         assign unused_we = we;
         assign unused_wd = wd;
         assign unused_q  = q;
