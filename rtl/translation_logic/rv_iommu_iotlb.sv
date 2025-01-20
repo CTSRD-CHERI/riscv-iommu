@@ -14,11 +14,13 @@
 // Date: 20/01/2025
 // Acknowledges: SSRC - Technology Innovation Institute (TII)
 //
-// Description: RISC-V IOMMU Memory-Resident Interrupt File Cache (MRIFC).
-//              Fully-associative cache to store MSI PTEs in MRIF mode and 
-//              the first-stage PTEs that map GVA to them.
+// Description: IO Translation Lookaside Buffer (IOTLB) for RISC-V IOMMU.
+//              Compliant with the Sv39x4 virtual memory scheme, as defined
+//              in the RISC-V Privileged Specification
+//              This module is an adaptation of the Sv39 TLB developed
+//              by Florian Zaruba and David Schaffenrath to the Sv39x4 standard.
 
-module rv_iommu_mrifc #(
+module rv_iommu_iotlb #(
     /// RISC-V IOMMU configuration struct
     parameter rv_iommu_cfg::rv_iommu_cfg_t RVIOMMUCfg = rv_iommu_cfg::NullCfg
 )(
@@ -29,7 +31,7 @@ module rv_iommu_mrifc #(
     input  rv_iommu::iotlb_inval_t      inval_i,
 
     // Update
-    input  rv_iommu::mrifc_up_t         update_i,
+    input  rv_iommu::iotlb_up_t         update_i,
 
     // Lookup
     input  logic                            lookup_i,
@@ -39,7 +41,7 @@ module rv_iommu_mrifc #(
     input  logic                            en_1S_i,
     input  logic                            en_2S_i,
     output logic                            lu_hit_o,
-    output rv_iommu::mrifc_content_t        lu_content_o
+    output rv_iommu::iotlb_content_t        lu_content_o
 );
 
     // Tags
@@ -52,68 +54,77 @@ module rv_iommu_mrifc #(
         logic               en_1S;
         logic               en_2S;
         logic               valid;
-    } [RVIOMMUCfg.NumMrifcEntries-1:0] tags_q, tags_n;
+    } [RVIOMMUCfg.NumIotlbEntries-1:0] tags_q, tags_n;
 
     // Contents
-    struct packed {
-        rv_iommu::iotlb_stage_content_t content_1S;
-        rv_iommu::mrifc_content_t       msi_content;
-    } [RVIOMMUCfg.NumMrifcEntries-1:0] content_q, content_n;
+    rv_iommu::iotlb_content_t [RVIOMMUCfg.NumIotlbEntries-1:0] content_q, content_n;
 
     logic [8:0] vpn0, vpn1;
     logic [10:0] vpn2;
-    logic [RVIOMMUCfg.NumMrifcEntries-1:0] match_gscid;
-    logic [RVIOMMUCfg.NumMrifcEntries-1:0] match_pscid;
-    logic [RVIOMMUCfg.NumMrifcEntries-1:0] match_stage;
-
-    // Replacement logic
-    logic [RVIOMMUCfg.NumMrifcEntries-1:0] lu_hit;
-    logic [RVIOMMUCfg.NumMrifcEntries-1:0] replace_en;
+    logic [RVIOMMUCfg.NumIotlbEntries-1:0] lu_hit;
+    logic [RVIOMMUCfg.NumIotlbEntries-1:0] replace_en;
+    logic [RVIOMMUCfg.NumIotlbEntries-1:0] match_gscid;
+    logic [RVIOMMUCfg.NumIotlbEntries-1:0] match_pscid;
+    logic [RVIOMMUCfg.NumIotlbEntries-1:0] match_stage;
+    logic [RVIOMMUCfg.NumIotlbEntries-1:0] is_1G;
+    logic [RVIOMMUCfg.NumIotlbEntries-1:0] is_2M;
 
     //--------
     // Lookup
     //--------
     always_comb begin : lookup
-
         vpn0 = lu_vpn_i[8:0];
         vpn1 = lu_vpn_i[17:9];
         vpn2 = lu_vpn_i[rv_iommu::GPPNW39-1:18];
-
-        match_pscid     = '{default: 0};
-        match_gscid     = '{default: 0};
-        match_stage     = '{default: 0};
 
         lu_hit          = '{default: 0};
         lu_hit_o        = 1'b0;
         lu_content_o    = '{default: 0};
 
-        if (lookup_i) begin
+        match_pscid     = '{default: 0};
+        match_gscid     = '{default: 0};
+        match_stage     = '{default: 0};
+        is_1G           = '{default: 0};
+        is_2M           = '{default: 0};
 
-            for (int unsigned i = 0; i < RVIOMMUCfg.NumMrifcEntries; i++) begin
-                
+        if (lookup_i) begin
+            
+            for (int unsigned i = 0; i < RVIOMMUCfg.NumIotlbEntries; i++) begin
+        
                 // PSCID match
                 match_pscid[i] = (((lu_pscid_i == tags_q[i].pscid) || content_q[i].content_1S.g) && en_1S_i) || !en_1S_i;
 
                 // GSCID match
                 match_gscid[i] = (lu_gscid_i == tags_q[i].gscid && en_2S_i) || !en_2S_i;
 
+                is_1G[i] = rv_iommu::is_trans_1G(   en_1S_i,
+                                                    en_2S_i,
+                                                    content_q[i].content_1S.is_1G,
+                                                    content_q[i].content_2S.is_1G
+                                                );
+
+                is_2M[i] = rv_iommu::is_trans_2M(   en_1S_i,
+                                                    en_2S_i,
+                                                    content_q[i].content_1S.is_1G,
+                                                    content_q[i].content_1S.is_2M,
+                                                    content_q[i].content_2S.is_1G,
+                                                    content_q[i].content_2S.is_2M
+                                                );
+
                 // Stage match
                 match_stage[i] = (tags_q[i].en_2S == en_2S_i) && (tags_q[i].en_1S == en_1S_i);
                 
-                // An entry match occurs if the entry is valid, if GSCID and PSCID matches, if translation stages matches, and VPN[2] matches
+                // Full match
                 if (tags_q[i].valid && match_pscid[i] && match_gscid[i] && match_stage[i] && (vpn2 == tags_q[i].vpn2)) begin
                     
                     // 1G match | 2M match | 4k match
-                    if ((content_q[i].content_1S.is_1G && tags_q[i].en_1S) || 
-                        ((vpn1 == tags_q[i].vpn1) && 
-                            ((content_q[i].content_1S.is_2M && tags_q[i].en_1S) || vpn0 == tags_q[i].vpn0))) begin
-                        
-                        lu_content_o    = content_q[i].msi_content;
+                    if (is_1G[i] || ((vpn1 == tags_q[i].vpn1) && (is_2M[i] || vpn0 == tags_q[i].vpn0))) begin
+                        lu_content_o    = content_q[i];
                         lu_hit_o        = 1'b1;
                         lu_hit[i]       = 1'b1;
                     end
                 end
-            end 
+            end
         end
     end
 
@@ -130,6 +141,8 @@ module rv_iommu_mrifc #(
     logic  [RVIOMMUCfg.NumIotlbEntries-1:0] gpaddr_gppn1_match;
     logic  [RVIOMMUCfg.NumIotlbEntries-1:0] gpaddr_gppn2_match;
     logic  [RVIOMMUCfg.NumIotlbEntries-1:0] gpaddr_4k_match;
+    logic  [RVIOMMUCfg.NumIotlbEntries-1:0] gpaddr_2M_match;
+    logic  [RVIOMMUCfg.NumIotlbEntries-1:0] gpaddr_1G_match;
     /*
         NOTE: 
         For IOTINVAL.GVMA command, any entry whose GVA maps to a GPA that matches 
@@ -145,7 +158,7 @@ module rv_iommu_mrifc #(
         tags_n    = tags_q;
         content_n = content_q;
 
-        for (int unsigned i = 0; i < RVIOMMUCfg.NumMrifcEntries; i++) begin
+        for (int unsigned i = 0; i < RVIOMMUCfg.NumIotlbEntries; i++) begin
 
             // GVA match
             vaddr_vpn0_match[i] = (inval_i.vpn[8:0] == tags_q[i].vpn0);
@@ -168,6 +181,8 @@ module rv_iommu_mrifc #(
             gpaddr_gppn2_match[i] = (inval_i.vpn[rv_iommu::GPPNW39-1:18] == gppn[i][rv_iommu::GPPNW39-1:18]);
 
             gpaddr_4k_match[i] = (gpaddr_gppn2_match[i] && gpaddr_gppn1_match[i] && gpaddr_gppn0_match[i]);
+            gpaddr_2M_match[i] = (gpaddr_gppn2_match[i] && gpaddr_gppn1_match[i] && content_q[i].content_2S.is_2M);
+            gpaddr_1G_match[i] = (gpaddr_gppn2_match[i] && content_q[i].content_2S.is_1G);
             
             // IOTINVAL.VMA
             // Ensures that all previous stores made to the first-stage PTs by the harts, 
@@ -265,8 +280,10 @@ module rv_iommu_mrifc #(
             else if(inval_i.inval_gvma) begin
                 unique case ({inval_i.gv, inval_i.av})
                     2'b00, 2'b01: begin
-                        // Invalidate all entries
-                        tags_n[i].valid = 1'b0;
+                        // 2S enabled, 1S don't care
+                        if(tags_q[i].en_2S) begin
+                            tags_n[i].valid = 1'b0;
+                        end
                     end
                     2'b10: begin
                         // 2S enabled, 1S don't care, GSCID match
@@ -276,7 +293,8 @@ module rv_iommu_mrifc #(
                     end
                     2'b11: begin
                         // 2S enabled, 1S don't care, GSCID match, IOVA match
-                        if(tags_q[i].en_2S && tags_q[i].gscid == inval_i.gscid && gpaddr_4k_match[i]) begin
+                        if(tags_q[i].en_2S && tags_q[i].gscid == inval_i.gscid && 
+                           (gpaddr_4k_match[i] || gpaddr_2M_match[i] || gpaddr_1G_match[i])) begin
                             tags_n[i].valid = 1'b0;
                         end
                     end
@@ -297,8 +315,7 @@ module rv_iommu_mrifc #(
                     valid:      1'b1
                 };
                 
-                content_n[i].content_1S     = update_i.content_1S;
-                content_n[i].msi_content    = update_i.msi_content;
+                content_n[i] = update_i.content;
             end
         end
     end
@@ -306,34 +323,35 @@ module rv_iommu_mrifc #(
     //-----------------------------------------------
     // PLRU - Pseudo Least Recently Used Replacement
     //-----------------------------------------------
-    logic[(RVIOMMUCfg.NumMrifcEntries-2):0] plru_tree_q, plru_tree_n;
-    
+    logic[(RVIOMMUCfg.NumIotlbEntries-2):0] plru_tree_q, plru_tree_n;
+
     always_comb begin : plru_replacement
         plru_tree_n = plru_tree_q;
-
-        for (int unsigned i = 0; i < RVIOMMUCfg.NumMrifcEntries; i++) begin
+        
+        for (int unsigned i = 0; i < RVIOMMUCfg.NumIotlbEntries; i++) begin
             automatic int unsigned idx_base, shift, new_index;
             idx_base    = 0;
             shift       = 0;
             new_index   = 0;
 
             if (lu_hit[i]) begin
-                for (int unsigned lvl = 0; lvl < $clog2(RVIOMMUCfg.NumMrifcEntries); lvl++) begin
+                for (int unsigned lvl = 0; lvl < $clog2(RVIOMMUCfg.NumIotlbEntries); lvl++) begin
                     idx_base = $unsigned((2**lvl)-1);
-                    shift = $clog2(RVIOMMUCfg.NumMrifcEntries) - lvl;
+                    shift = $clog2(RVIOMMUCfg.NumIotlbEntries) - lvl;
                     new_index =  ~((i >> (shift-1)) & 32'b1);
                     plru_tree_n[idx_base + (i >> shift)] = new_index[0];
                 end
             end
         end
 
-        for (int unsigned i = 0; i < RVIOMMUCfg.NumMrifcEntries; i += 1) begin
+        for (int unsigned i = 0; i < RVIOMMUCfg.NumIotlbEntries; i += 1) begin
             automatic logic en;
             automatic int unsigned idx_base, shift, new_index;
             en = 1'b1;
-            for (int unsigned lvl = 0; lvl < $clog2(RVIOMMUCfg.NumMrifcEntries); lvl++) begin
+
+            for (int unsigned lvl = 0; lvl < $clog2(RVIOMMUCfg.NumIotlbEntries); lvl++) begin
                 idx_base = $unsigned((2**lvl)-1);
-                shift = $clog2(RVIOMMUCfg.NumMrifcEntries) - lvl;
+                shift = $clog2(RVIOMMUCfg.NumIotlbEntries) - lvl;
                 new_index =  (i >> (shift-1)) & 32'b1;
                 if (new_index[0]) begin
                     en &= plru_tree_q[idx_base + (i>>shift)];
@@ -347,12 +365,11 @@ module rv_iommu_mrifc #(
 
     // sequential process
     always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) begin
+        if(!rst_ni) begin
             tags_q      <= '{default: 0};
             content_q   <= '{default: 0};
             plru_tree_q <= '{default: 0};
-        end
-        else begin
+        end else begin
             tags_q      <= tags_n;
             content_q   <= content_n;
             plru_tree_q <= plru_tree_n;
