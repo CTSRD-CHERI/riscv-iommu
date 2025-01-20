@@ -1,0 +1,12 @@
+[submodule "vendor/axi"]
+	path = vendor/axi
+	url = git@github.com:pulp-platform/axi.git
+[submodule "vendor/common_cells"]
+	path = vendor/common_cells
+	url = git@github.com:pulp-platform/common_cells.git
+[submodule "vendor/axi_slice"]
+	path = vendor/axi_slice
+	url = git@github.com:pulp-platform/axi_slice.git
+[submodule "vendor/register_interface"]
+	path = vendor/register_interface
+	url = git@github.com:pulp-platform/register_interface.git
