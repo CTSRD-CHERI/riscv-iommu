@@ -21,12 +21,12 @@ package dti_ats_pkg;
   // Enums
   // --------------------------------------------------------------------------
   typedef enum logic [3:0] {
-      DTI_ATS_CONDIS_REQ  = 4'h0,
-      DTI_ATS_TRANS_REQ   = 4'h2,
-      DTI_ATS_INV_ACK     = 4'hC,
-      DTI_ATS_INV_COMP    = 4'hB,
-      DTI_ATS_SYNC_ACK    = 4'hD,
-      DTI_ATS_PAGE_REQ    = 4'h8,
+      DTI_ATS_CONDIS_REQ   = 4'h0,
+      DTI_ATS_TRANS_REQ    = 4'h2,
+      DTI_ATS_INV_ACK      = 4'hC,
+      DTI_ATS_INV_COMP     = 4'hB,
+      DTI_ATS_SYNC_ACK     = 4'hD,
+      DTI_ATS_PAGE_REQ     = 4'h8,
       DTI_ATS_PAGE_RESPACK = 4'h9
   } dti_ats_msg_type_down_e;
 
@@ -37,7 +37,7 @@ package dti_ats_pkg;
       DTI_ATS_INV_REQ     = 4'hC,
       DTI_ATS_SYNC_REQ    = 4'hD,
       DTI_ATS_PAGE_ACK    = 4'h8,
-      DTI_ATS_PAGE_RESP    = 4'h9
+      DTI_ATS_PAGE_RESP   = 4'h9
   } dti_ats_msg_type_up_e;
 
   // --------------------------------------------------------------------------
@@ -46,22 +46,32 @@ package dti_ats_pkg;
 
   // Connection and Disconnection Messages
   typedef struct packed {
-      logic [3:0] m_msg_type; //4 bits
-      logic [3:0] state;    // 1-bit
-      logic [1:0] reserved_2;
-      logic sup_t;      // 1-bit
-      tok_t tok_trans_req;     // 12 bits (11:8 and 7:0 combined)
-      logic [119:0] reserved; //119 bits
+     logic [127:0] unused;
+     logic [3:0] tok_trans_req_msb;
+     logic [1:0] reserved_1;
+     logic       sup_t;
+     logic       no_trans;
+     logic [3:0] tok_inv_gnt;
+     logic [7:0] tok_trans_req_lsb;
+     logic [3:0] version;
+     logic [1:0] reserved_0;
+     logic       protocol;
+     logic       state;
+     logic [3:0] msg_type;
   } dti_ats_condis_req_s;
 
   typedef struct packed {
-      logic [3:0] s_msg_type;
-      logic state;        // 1 bit
-      logic [1:0] reserved_1;
-      logic [2:0] oas;    // 3 bits
-      tok_t tok_trans_gnt;     // 12 bits (11:8 and 7:0 combined)
-      logic [7:0] version;    // 8-bits
-      logic [120:0] reserved_2;
+     logic [127:0] unused;
+     logic [3:0] tok_trans_gnt_msb;
+     logic [1:0] reserved_2;
+     logic       sup_t;
+     logic [3:0] reserved_1;
+     logic       sup_pri;
+     logic [7:0] tok_trans_gnt_lsb;
+     logic [3:0] version;
+     logic [2:0] reserved_0;
+     logic       state;
+     logic [3:0] msg_type;
   } dti_ats_condis_ack_s;
 
   //Translation Request Messages
@@ -196,62 +206,6 @@ package dti_ats_pkg;
 
   typedef struct packed {
       logic[159:0] data;
-  } dti_ats_payload_s;
+  } dti_payload_s;
 
 endpackage
-
-
-/*
-  // Union to encapsulate all ATS messages
-  typedef union packed {
-      dti_ats_condis_req_s    condis_req;
-      dti_ats_condis_ack_s    condis_ack;
-      dti_ats_trans_req_s    trans_req;
-      dti_ats_trans_resp_s   trans_resp;
-      dti_ats_trans_fault_s trans_fault;
-      dti_ats_inv_req_s   inv_req;
-      dti_ats_inv_ack_s   inv_ack;
-      dti_ats_inv_comp_s  inv_comp;
-      dti_ats_sync_req_s sync_req;
-      dti_ats_sync_ack_s sync_ack;
-      dti_ats_page_req_s page_req;
-      dti_ats_page_ack_s page_ack;
-      dti_ats_page_resp_s page_resp;
-      dti_ats_page_respack_s page_respack;
-      logic [159:0] raw; // fallback representation
-  }dti_ats_msg_u;
-*/
-
-/*
-  `define ASSIGN_MSG_PAYLOAD(payload, msg, msg_type) \
-      case(msg_type) \
-         DTI_ATS_CONDIS_REQ : payload.data = msg.condis_req; \
-         DTI_ATS_TRANS_REQ : payload.data = msg.trans_req; \
-         DTI_ATS_INV_ACK : payload.data = msg.inv_ack; \
-         DTI_ATS_INV_COMP : payload.data = msg.inv_comp; \
-         DTI_ATS_SYNC_ACK : payload.data = msg.sync_ack; \
-         DTI_ATS_PAGE_REQ : payload.data = msg.page_req; \
-         DTI_ATS_PAGE_RESPACK : payload.data = msg.page_respack; \
-         DTI_ATS_CONDIS_ACK: payload.data =  msg.condis_ack; \
-         DTI_ATS_TRANS_FAULT: payload.data =  msg.trans_fault; \
-         DTI_ATS_TRANS_RESP: payload.data =  msg.trans_resp; \
-         DTI_ATS_INV_REQ:  payload.data =  msg.inv_req; \
-         DTI_ATS_SYNC_REQ: payload.data = msg.sync_req; \
-         DTI_ATS_PAGE_ACK:  payload.data =  msg.page_ack; \
-         DTI_ATS_PAGE_RESP:  payload.data = msg.page_resp; \
-         default:  payload.data = 160'bx; \
-      endcase
-
- `define ASSIGN_TO_PAYLOAD(msg, payload, msg_type) \
-      msg = '{default:0}; \
-      case(msg_type) \
-         DTI_ATS_CONDIS_ACK: msg.condis_ack = payload.data; \
-         DTI_ATS_TRANS_FAULT: msg.trans_fault = payload.data; \
-         DTI_ATS_TRANS_RESP: msg.trans_resp= payload.data; \
-         DTI_ATS_INV_REQ:  msg.inv_req = payload.data; \
-         DTI_ATS_SYNC_REQ:  msg.sync_req= payload.data; \
-         DTI_ATS_PAGE_ACK:  msg.page_ack= payload.data; \
-         DTI_ATS_PAGE_RESP: msg.page_resp = payload.data; \
-         default:  msg.raw = payload.data; \
-      endcase
-*/
