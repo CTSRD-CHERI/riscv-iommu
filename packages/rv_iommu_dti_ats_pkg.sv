@@ -7,7 +7,7 @@
 //
 // DTI ATS Package
 
-package dti_ats_pkg;
+package rv_iommu_dti_ats_pkg;
 
   // --------------------------------------------------------------------------
   // Basic Data Types

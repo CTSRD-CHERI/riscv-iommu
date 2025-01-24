@@ -168,3 +168,13 @@ cython_debug/
 # Custom
 *.txt
 formal/
+
+#Pulp Framework
+
+bender
+.bender/
+Bender.lock
+target/sim/vsim/compile.tcl
+target/sim/vsim/vsim.wlf
+target/sim/vsim/transcript
+target/sim/vsim/modelsim.ini

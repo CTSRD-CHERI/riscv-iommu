@@ -14,23 +14,23 @@
 //
 
 module dti_ats_axis_dn_fsm
-  include dti_ats_pkg::*;
+  import rv_iommu_dti_ats_pkg::*;
 #(
   parameter DATA_WIDTH = 160,
-  parameter typer axis_req_t = logic,
-  parameter typer axis_rsp_t = logic
+  parameter type axis_req_t = logic,
+  parameter type axis_rsp_t = logic
 ) (
-  input  logic                 clk_i,
-  input  logic                 rst_ni,
+  input  logic         clk_i,
+  input  logic         rst_ni,
 
   // AXI4-Stream Slave Interface
-  input  axis_req_t            axis_req_dn_i,
-  output axis_rsp_t            axis_rsp_dn_o,
+  input  axis_req_t    axis_req_dn_i,
+  output axis_rsp_t    axis_rsp_dn_o,
 
   // DTI-ATS Message Output
-  output logic [DATA_WIDTH-1:0] dn_msg_o,
-  output logic                  dn_msg_valid_o,
-  input  logic                  dn_msg_ready_i
+  output dti_payload_s dn_msg_o,
+  output logic         dn_msg_valid_o,
+  input  logic         dn_msg_ready_i
 );
 
   // State Definition
@@ -44,7 +44,7 @@ module dti_ats_axis_dn_fsm
   // Internal Variables
   dti_ats_msg_type_up_e msg_type;
 
-  logic msg_complete;
+  logic payload;
 
   // State Transition Logic
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -65,7 +65,7 @@ module dti_ats_axis_dn_fsm
            next_state = IDLE;
       end
       RECEIVING: begin
-         if(msg_complete && dn_msg_ready_i)
+         if(dn_msg_valid_o && dn_msg_ready_i)
            next_state = IDLE;
          else
            next_state = RECEIVING;
@@ -79,15 +79,9 @@ module dti_ats_axis_dn_fsm
     if (!rst_ni) begin
       axis_rsp_dn_o.tready <= 1'b0;
       dn_msg_valid_o       <= 1'b0;
-      dn_msg_o             <= '0;
-      dn_msg_type_o        <= '0;
-      msg_complete         <= 1'b0;
     end else begin
       axis_rsp_dn_o.tready <= 1'b0;
       dn_msg_valid_o       <= 1'b0;
-      dn_msg_o             <= '0;
-      dn_msg_type_o        <= '0;
-      msg_complete         <= 1'b0;
       case(current_state)
         IDLE: begin
           if(axis_req_dn_i.tvalid) begin
@@ -95,16 +89,19 @@ module dti_ats_axis_dn_fsm
           end
         end
         RECEIVING: begin
-          axis_rsp_dn_o.tready <= 1'b1;
-          if (axis_req_dn_i.tlast) begin
-             msg_complete <= 1'b1;
-          end
-          dn_msg_o <= axis_req_dn_i.tdata;
           dn_msg_valid_o <= 1'b1;
         end
       endcase
     end
-  end
+  end // always_ff @ (posedge clk_i)
+
+   
+   always_ff @(posedge clk_i or negedge rst_ni) begin : dn_condis_req
+      if(~rst_ni)
+        dn_msg_o <= '0;
+      else if (axis_req_dn_i.tvalid && axis_rsp_dn_o.tready)
+        dn_msg_o <= axis_req_dn_i.t.data;
+   end
 
 endmodule
 

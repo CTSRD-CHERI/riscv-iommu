@@ -14,23 +14,23 @@
 //
 
 module dti_ats_axis_up_fsm
-  include dti_ats_pkg::*;
+  import rv_iommu_dti_ats_pkg::*;
  #(
   parameter DATA_WIDTH = 160,
-  parameter typer axis_req_t = logic,
-  parameter typer axis_rsp_t = logic
+  parameter type axis_req_t = logic,
+  parameter type axis_rsp_t = logic
 ) (
-  input logic                   clk_i,
-  input logic                   rst_ni,
+  input logic          clk_i,
+  input logic          rst_ni,
 
   // AXI4-Stream Master Interface
-  output axis_req_t             axis_req_up_o,
-  input  axis_rsp_t             axis_rsp_up_i,
+  output axis_req_t    axis_req_up_o,
+  input  axis_rsp_t    axis_rsp_up_i,
 
   // DTI-ATS Message Input
-  input  logic [DATA_WIDTH-1:0] up_msg_i,
-  input  logic                  up_msg_valid_i,
-  output logic                  up_msg_ready_o
+  input  dti_payload_s up_msg_i,
+  input  logic         up_msg_valid_i,
+  output logic         up_msg_ready_o
 );
 
   // State Definition
@@ -40,10 +40,6 @@ module dti_ats_axis_up_fsm
   } state_e;
 
   state_e current_state, next_state;
-
-  // Internal Variables
-  dti_ats_payload_s current_payload;
-  logic msg_complete;
 
   // State Transition Logic
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -67,7 +63,7 @@ module dti_ats_axis_up_fsm
         if(axis_rsp_up_i.tready && axis_req_up_o.tvalid)
           next_state = IDLE;
         else
-          nest_state = SENDING;
+          next_state = SENDING;
       end
       default : next_state = IDLE;
     endcase
@@ -77,23 +73,23 @@ module dti_ats_axis_up_fsm
   always_ff @(posedge clk_i) begin
     if(!rst_ni) begin
       axis_req_up_o.tvalid <= '0;
-      axis_req_up_o.tdata <= '0;
-      axis_req_up_o.tlast <= '0;
-      axis_req_up_o.tuser <= '0;
-      axis_req_up_o.tkeep <= '1;
-      axis_req_up_o.tstrb <= '1;
-      axis_req_up_o.tid    <= '0; // not implemented
-      axis_req_up_o.tdest  <= '0; // TBD
+      axis_req_up_o.t.data <= '0;
+      axis_req_up_o.t.last <= '0;
+      axis_req_up_o.t.user <= '0;
+      axis_req_up_o.t.keep <= '1;
+      axis_req_up_o.t.strb <= '1;
+      axis_req_up_o.t.id    <= '0; // not implemented
+      axis_req_up_o.t.dest  <= '0; // TBD
       up_msg_ready_o       <= '0;
     end else begin
       axis_req_up_o.tvalid <= '0;
-      axis_req_up_o.tdata  <= '0;
-      axis_req_up_o.tlast  <= '0;
-      axis_req_up_o.tuser  <= '0;
-      axis_req_up_o.tkeep  <= '1;
-      axis_req_up_o.tstrb  <= '1;
-      axis_req_up_o.tid    <= '0;
-      axis_req_up_o.tdest  <= '0;
+      axis_req_up_o.t.data  <= '0;
+      axis_req_up_o.t.last  <= '0;
+      axis_req_up_o.t.user  <= '0;
+      axis_req_up_o.t.keep  <= '1;
+      axis_req_up_o.t.strb  <= '1;
+      axis_req_up_o.t.id    <= '0;
+      axis_req_up_o.t.dest  <= '0;
       up_msg_ready_o       <= '0;
       case(current_state)
         IDLE: begin
@@ -103,13 +99,13 @@ module dti_ats_axis_up_fsm
         end
         SENDING: begin
           axis_req_up_o.tvalid <= 1'b1;
-          axis_req_up_o.tdata  <= up_msg_i;
-          axis_req_up_o.tlast  <= 1'b1;
-          axis_req_up_o.tuser  <= '0;
-          axis_req_up_o.tkeep  <= '1;
-          axis_req_up_o.tstrb  <= '1;
-          axis_req_up_o.tid    <= '0;
-          axis_req_up_o.tdest  <= '0;
+          axis_req_up_o.t.data  <= up_msg_i;
+          axis_req_up_o.t.last  <= 1'b1;
+          axis_req_up_o.t.user  <= '0;
+          axis_req_up_o.t.keep  <= '1;
+          axis_req_up_o.t.strb  <= '1;
+          axis_req_up_o.t.id    <= '0;
+          axis_req_up_o.t.dest  <= '0;
         end
       endcase
     end

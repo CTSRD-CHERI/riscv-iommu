@@ -17,8 +17,9 @@ module dti_ats_top
   import rv_iommu_dti_ats_pkg::*;
 #(
   parameter DATA_WIDTH = 160,
-  parameter typer axis_req_t = logic,
-  parameter typer axis_rsp_t = logic
+  parameter MAX_TOKENS = 16,
+  parameter type axis_req_t = logic,
+  parameter type axis_rsp_t = logic
 ) (
   input  logic      clk_i,
   input  logic      rst_ni,
@@ -49,6 +50,9 @@ module dti_ats_top
 
    logic         connected; // Link status
    logic         condis_ack_valid, condis_req_ready;
+
+   assign dn_msg_ready = condis_req_ready;
+   assign up_msg_valid = condis_ack_valid;
 
 /////////////////////////
 //// Transport layer ////
@@ -88,7 +92,7 @@ module dti_ats_top
 //// Finite State Machines  ////
 ////////////////////////////////
 
-   typedef enum logic {
+   typedef enum logic [1:0] {
      DISCONNECTED,
      REQ_CONNECTED,
      CONNECTED,
@@ -105,7 +109,7 @@ module dti_ats_top
       condis_ack.msg_type          <= DTI_ATS_CONDIS_ACK;           // condis ack encoding
       condis_ack.state             <= 1'b0;                         // by default, disconnected
       condis_ack.reserved_0        <= 3'b0;                         // SBZ
-      condis_ack.version           <= 4'0011;                       // DTI-ATSv4 encoding
+      condis_ack.version           <= 4'b0011;                       // DTI-ATSv4 encoding
       condis_ack.tok_trans_gnt_lsb <= condis_req.tok_trans_req_lsb;
       condis_ack.sup_pri           <= 1'b1;                         // Page Request Intf supported
       condis_ack.reserved_1        <= 4'b0;                         // SBZ
@@ -124,42 +128,47 @@ module dti_ats_top
            if(dn_msg_valid && dn_msg[3:0] == DTI_ATS_CONDIS_REQ) begin
              condis_req_ready <= 1'b1;
              condis_cmd_ns <= REQ_CONNECTED;
-           else
+           end else begin
              condis_cmd_ns <= DISCONNECTED;
+           end
         end
         REQ_CONNECTED: begin
            if(condis_req.protocol == 1'b1 && condis_req.state == 1'b1
-              && [condis_req.tok_trans_req_msb, condis_req.tok_trans_req_lsb] <= MAX_TOKEN) begin : conn_accepted
+              && {condis_req.tok_trans_req_msb, condis_req.tok_trans_req_lsb} <= MAX_TOKENS) begin
              condis_ack.state <= 1'b1;
              condis_ack_valid <= 1'b1;
              if(up_msg_ready && up_msg_valid)
                condis_cmd_ns <= CONNECTED;
              else
                condis_cmd_ns <= REQ_CONNECTED;
-           end else begin : conn_denied
+           end else begin
              condis_ack_valid <= 1'b1;
              if(up_msg_ready && up_msg_valid)
                condis_cmd_ns <= DISCONNECTED;
              else
-               condis_cmd_ns <= REQ_CONNECTED
+               condis_cmd_ns <= REQ_CONNECTED;
+           end
         end
         CONNECTED: begin
            connected <= 1'b1;
            if(dn_msg_valid && dn_msg[3:0] == DTI_ATS_CONDIS_REQ) begin
              condis_req_ready <= 1'b1;
              condis_cmd_ns <= REQ_DISCONNECTED;
-           else
+           end else begin
              condis_cmd_ns <= CONNECTED;
+           end
         end
-        REQ_DISCONNECTED: begin
-           if(condis_req.protocol == 1'b1 && condis_req.state == 1'b0) begin
-             condis_ack_valid <= 1'b1;
-             if(up_msg_ready && up_msg_valid)
-               condis_cmd_ns <= DISCONNECTED;
-             else
-               condis_cmd_ns <= REQ_DISCONNECTED;
+        REQ_DISCONNECTED: begin         // check what to do when the state=1 even if for a disconnect req. not clear from spec.
+          condis_ack_valid <= 1'b1;
+           if(up_msg_ready && up_msg_valid) begin
+             condis_cmd_ns <= DISCONNECTED;
+           end else begin
+             condis_cmd_ns <= REQ_DISCONNECTED;
+           end
         end
-        default: condis_cmd_ns <= DISCONNECTED;
+        default: begin
+           condis_cmd_ns <= DISCONNECTED;
+        end
       endcase
    end
 
@@ -169,7 +178,7 @@ module dti_ats_top
 
    always_ff @(posedge clk_i or negedge rst_ni) begin : condis_state_update
       if(~rst_ni)
-        condis_cmd_cs <= '0;
+        condis_cmd_cs <= DISCONNECTED;
       else
         condis_cmd_cs <= condis_cmd_ns;
    end
@@ -179,6 +188,13 @@ module dti_ats_top
         condis_req <= '0;
       else if (dn_msg[3:0] == DTI_ATS_CONDIS_REQ && dn_msg_valid && dn_msg_ready)
         condis_req <= dti_ats_condis_req_s'(dn_msg);
+   end
+
+   always_ff @(posedge clk_i or negedge rst_ni) begin : up_condis_ack
+      if(~rst_ni)
+        up_msg <= '0;
+      else if (up_msg_valid && up_msg_ready)
+        up_msg <= dti_payload_s'(condis_ack);
    end
 
    // token stuff: counters to keep track of the tokens
