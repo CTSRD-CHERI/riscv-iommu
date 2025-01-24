@@ -174,7 +174,8 @@ formal/
 bender
 .bender/
 Bender.lock
-target/sim/vsim/compile.tcl
-target/sim/vsim/vsim.wlf
-target/sim/vsim/transcript
-target/sim/vsim/modelsim.ini
+sim/vsim/compile.tcl
+sim/vsim/vsim.wlf
+sim/vsim/transcript
+sim/vsim/modelsim.ini
+sim/vsim/work

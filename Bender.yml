@@ -107,4 +107,4 @@ sources:
   #- rtl/rv_iommu_top.sv
   #- rtl/rv_iommu_wrap.sv
 
-  - target/sim/src/rv_iommu_dti_ats_top_tb.sv
+  - sim/src/rv_iommu_dti_ats_top_tb.sv
