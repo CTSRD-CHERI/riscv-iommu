@@ -16,21 +16,26 @@
 module dti_ats_top
   import rv_iommu_dti_ats_pkg::*;
 #(
-  parameter DATA_WIDTH = 160,
-  parameter MAX_TOKENS = 16,
+  parameter      DATA_WIDTH = 160,
+  parameter      MAX_TOKENS = 16,
   parameter type axis_req_t = logic,
   parameter type axis_rsp_t = logic
 ) (
   input  logic      clk_i,
   input  logic      rst_ni,
 
-  // AXI4-Stream Master Interface
+  // AXI4-Stream Slave Interface DTI_ATS->PCIe
+  input  axis_req_t axis_req_dn_i,
+  output axis_rsp_t axis_rsp_dn_o,
+
+  // AXI4-Stream Master Interface PCIe->DTI_ATS
   output axis_req_t axis_req_up_o,
   input  axis_rsp_t axis_rsp_up_i,
 
-  // AXI4-Stream Slave Interface
-  input  axis_req_t axis_req_dn_i,
-  output axis_rsp_t axis_rsp_dn_o
+  // Invalidation Request IOMMU -> DTI_ATS
+  input  dti_ats_inv_req_s inv_req_cmd_i,
+  input  logic             inv_req_cmd_valid_i,
+  output logic             inv_req_cmd_ready_o
 
   // TBD ...
   // TBD ...
@@ -58,12 +63,12 @@ module dti_ats_top
 //// Transport layer ////
 /////////////////////////
 
-   //Downstream Logic
+   //Downstream AXIS Receiver
    dti_ats_axis_dn_fsm #(
      .DATA_WIDTH ( DATA_WIDTH ),
      .axis_req_t ( axis_req_t ),
      .axis_rsp_t ( axis_rsp_t )
-   ) downstream_fsm (
+   ) i_downstream_fsm (
      .clk_i          ( clk_i         ),
      .rst_ni         ( rst_ni        ),
      .axis_req_dn_i  ( axis_req_dn_i ),
@@ -73,12 +78,12 @@ module dti_ats_top
      .dn_msg_ready_i ( dn_msg_ready  )
    );
 
-   //Upstream Logic
+   //Upstream AXIS Driver
    dti_ats_axis_up_fsm #(
      .DATA_WIDTH ( DATA_WIDTH ),
      .axis_req_t ( axis_req_t ),
      .axis_rsp_t ( axis_rsp_t )
-   ) upstream_fsm (
+   ) i_upstream_fsm (
      .clk_i          ( clk_i         ),
      .rst_ni         ( rst_ni        ),
      .axis_req_up_o  ( axis_req_up_o ),
@@ -92,6 +97,40 @@ module dti_ats_top
 //// Finite State Machines  ////
 ////////////////////////////////
 
+   ats_dti_condis_cmd_fsm #(
+     .MAX_TOKENS     ( MAX_TOKENS       )
+   ) i_condis_fsm (
+     .clk_i          ( clk_i            ),
+     .rst_ni         ( rst_ni           ),
+     .up_msg_o       ( up_msg           ),
+     .up_msg_valid_o ( condis_ack_valid ),
+     .up_msg_ready_i ( up_msg_ready     ),
+     .dn_msg_i       ( dn_msg           ),
+     .dn_msg_valid_i ( dn_msg_valid     ),
+     .dn_msg_ready_o ( condis_req_ready ),
+     .connected_o    ( connected        )
+   );
+
+   // token stuff: counters to keep track of the tokens
+   // fifos to keep the outstanding commands
+
+ endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
    typedef enum logic [1:0] {
      DISCONNECTED,
      REQ_CONNECTED,
@@ -196,8 +235,4 @@ module dti_ats_top
       else if (up_msg_valid && up_msg_ready)
         up_msg <= dti_payload_s'(condis_ack);
    end
-
-   // token stuff: counters to keep track of the tokens
-   // fifos to keep the outstanding commands
-
- endmodule
+*/

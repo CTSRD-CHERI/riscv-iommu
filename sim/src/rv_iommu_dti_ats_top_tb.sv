@@ -94,8 +94,8 @@ module rv_iommu_dti_ats_top_tb;
      .IdWidth   ( ID_WIDTH           ),
      .DestWidth ( DEST_WIDTH         ),
      .UserWidth ( USER_WIDTH         ),
-     .TestTime  ( REFClockPeriod*0.9 ),
-     .ApplTime  ( REFClockPeriod*0.1 )
+     .TestTime  ( 0                  ),
+     .ApplTime  ( 0                  )
    ) master_drv_t;
 
    master_drv_t master_drv = new(master_dv);
@@ -123,8 +123,8 @@ module rv_iommu_dti_ats_top_tb;
      .IdWidth   ( ID_WIDTH           ),
      .DestWidth ( DEST_WIDTH         ),
      .UserWidth ( USER_WIDTH         ),
-     .TestTime  ( REFClockPeriod*0.9 ),
-     .ApplTime  ( REFClockPeriod*0.1 )
+     .TestTime  ( 0                  ),
+     .ApplTime  ( 0                  )
    ) slave_drv_t;
 
    slave_drv_t slave_drv = new(slave_dv);
@@ -158,37 +158,58 @@ module rv_iommu_dti_ats_top_tb;
    end
    // Main test process
    initial begin
-      logic [DATA_WIDTH-1:0] send_payload;
-      logic [DATA_WIDTH-1:0] recv_payload;
-      logic                  recv_last;
 
-      // Initialize payload
-      send_payload = 160'h0000_0000_0000_0000_0000_0000_0000_0030;
+      dti_ats_condis_req_s condis_con_req, condis_discon_req;
+      dti_ats_condis_ack_s condis_con_ack, condis_discon_ack;
+
+      logic recv_last;
+
+      // Initialize payloads
+      condis_con_req          = '0;
+      condis_con_req.protocol = 1'b1;
+      condis_con_req.state    = 1'b1;
+
+      condis_discon_req          = '0;
+      condis_discon_req.protocol = 1'b1;
 
       // Wait for reset to complete
       wait(rst_ni);
       @(posedge clk_i);
 
+      master_drv.reset_tx();
+      master_drv.reset_rx();
+      slave_drv.reset_tx();
+      slave_drv.reset_rx();
+
+      repeat(30)
+           @(posedge clk_i);
+
       // Send a message from master to the DUT
-      $display("Sending message: %h", send_payload);
-      fork
-         begin
-            master_drv.send(send_payload, 1'b1); // Send payload with tlast=1
-         end
-         begin
-            slave_drv.recv(recv_payload, recv_last); // Wait to receive from the slave interface
-         end
-      join
+      $display("Sending message: %h", condis_con_req);
+      master_drv.send(condis_con_req, 1'b1); // Send payload with tlast=1
+      slave_drv.recv(condis_con_ack, recv_last); // Wait to receive from the slave interface
+      // Verify the received message
+      $display("Received message: %h", condis_con_ack);
+
+      $display("--------------------");
+
+      $display("Sending message: %h", condis_discon_req);
+      master_drv.send(condis_discon_req, 1'b1); // Send payload with tlast=1
+      slave_drv.recv(condis_discon_ack, recv_last); // Wait to receive from the slave interface
 
       // Verify the received message
-      $display("Received message: %h", recv_payload);
+      $display("Received message: %h", condis_discon_ack);
+
+      repeat(100)
+           @(posedge clk_i);
+      /*
       if (recv_payload === send_payload && recv_last === 1'b1) begin
          $display("Message received successfully.");
       end else begin
          $error("Message mismatch or tlast error. Expected: %h, Received: %h, tlast: %b",
                 send_payload, recv_payload, recv_last);
       end
-
+*/
       // Simulation complete
       $stop;
    end

@@ -78,11 +78,11 @@ module dti_ats_axis_up_fsm
       axis_req_up_o.t.user <= '0;
       axis_req_up_o.t.keep <= '1;
       axis_req_up_o.t.strb <= '1;
-      axis_req_up_o.t.id    <= '0; // not implemented
-      axis_req_up_o.t.dest  <= '0; // TBD
+      axis_req_up_o.t.id   <= '0; // not implemented
+      axis_req_up_o.t.dest <= '0; // TBD
       up_msg_ready_o       <= '0;
     end else begin
-      axis_req_up_o.tvalid <= '0;
+      axis_req_up_o.tvalid  <= '0;
       axis_req_up_o.t.data  <= '0;
       axis_req_up_o.t.last  <= '0;
       axis_req_up_o.t.user  <= '0;
@@ -90,7 +90,7 @@ module dti_ats_axis_up_fsm
       axis_req_up_o.t.strb  <= '1;
       axis_req_up_o.t.id    <= '0;
       axis_req_up_o.t.dest  <= '0;
-      up_msg_ready_o       <= '0;
+      up_msg_ready_o        <= '0;
       case(current_state)
         IDLE: begin
           if(up_msg_valid_i) begin
@@ -98,7 +98,7 @@ module dti_ats_axis_up_fsm
           end
         end
         SENDING: begin
-          axis_req_up_o.tvalid <= 1'b1;
+          axis_req_up_o.tvalid  <= 1'b1;
           axis_req_up_o.t.data  <= up_msg_i;
           axis_req_up_o.t.last  <= 1'b1;
           axis_req_up_o.t.user  <= '0;
@@ -112,14 +112,3 @@ module dti_ats_axis_up_fsm
   end
 
 endmodule
-
-
-/*
-  output logic [1:0]            tid_o,     not impl
-  output logic [1:0]            tdest_o    TBD
-  output logic [1:0]            twakeup_o  TBD
-
-  output logic [7:0]            tuser_o, '0
-  output logic [3:0]            tstrb_o, '1
-  output logic [3:0]            tkeep_o, '1
-*/

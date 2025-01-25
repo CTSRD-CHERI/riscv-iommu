@@ -24,7 +24,7 @@ update:
 compile.tcl:
 	$(BENDER) script vsim \
 		--vlog-arg="$(compile_flag)  -work  $(library) -suppress 2583 -suppress 13314 -suppress 8386 +nospecify +notimingchecks" --vcom-arg=" -work $(library)" \
-    -t rtl -t test -t tb -t vip > target/sim/vsim/$@
+    -t rtl -t test -t tb -t vip > sim/vsim/$@
 
 init: bender update compile.tcl
  

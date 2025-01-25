@@ -95,7 +95,7 @@ module dti_ats_axis_dn_fsm
     end
   end // always_ff @ (posedge clk_i)
 
-   
+
    always_ff @(posedge clk_i or negedge rst_ni) begin : dn_condis_req
       if(~rst_ni)
         dn_msg_o <= '0;
@@ -104,53 +104,3 @@ module dti_ats_axis_dn_fsm
    end
 
 endmodule
-
-/*
-  input logic  [1:0]           tid_i,     TBD
-  output logic [1:0]           tdest_i    not impl
-  output logic [1:0]           twakeup_i  TBD
-
-  input logic  [3:0]           tstrb_i,  don't care
-  input logic  [3:0]           tkeep_i,  don't care
-  output logic [7:0]           tuser_i,  don't care
-*/
-
-/*
- case(msg_type)
-             DTI_ATS_CONDIS_ACK: begin
-                dn_msg_o.condis_ack  <= axis_req_dn_i.tdata;
-                dn_msg_valid_o       <= 1'b1;
-                dn_msg_type_o        <= msg_type;
-             end
-             DTI_ATS_TRANS_FAULT: begin
-                dn_msg_o.trans_fault <= axis_req_dn_i.tdata;
-                dn_msg_valid_o       <= 1'b1;
-                dn_msg_type_o        <= msg_type;
-             DTI_ATS_TRANS_RESP: begin
-                dn_msg_o.trans_resp  <= axis_req_dn_i.tdata;
-                dn_msg_valid_o       <= 1'b1;
-                dn_msg_type_o        <= msg_type;
-             end
-             DTI_ATS_INV_REQ: begin
-                dn_msg_o.inv_req     <= axis_req_dn_i.tdata;
-                dn_msg_valid_o       <= 1'b1;
-                dn_msg_type_o        <= msg_type;
-             end
-             DTI_ATS_SYNC_REQ: begin
-                dn_msg_o.sync_req    <= axis_req_dn_i.tdata;
-                dn_msg_valid_o       <= 1'b1;
-                dn_msg_type_o        <= msg_type;
-             end
-             DTI_ATS_PAGE_ACK: begin
-                dn_msg_o.page_ack    <= axis_req_dn_i.tdata;
-                dn_msg_valid_o       <= 1'b1;
-                dn_msg_type_o        <= msg_type;
-             end
-             DTI_ATS_PAGE_RESP: begin
-                dn_msg_o.page_resp   <= axis_req_dn_i.tdata;
-                dn_msg_valid_o        <= 1'b1;
-                dn_msg_type_o        <= msg_type;
-             end
-             default:  dn_msg_o <= '0;
-          endcase
- */

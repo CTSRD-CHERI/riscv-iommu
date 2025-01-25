@@ -74,6 +74,7 @@ sources:
 
   - rtl/ats_dti/ats_dti_axis_dn_fsm.sv
   - rtl/ats_dti/ats_dti_axis_up_fsm.sv
+  - rtl/ats_dti/ats_dti_condis_cmd_fsm.sv
   - rtl/ats_dti/ats_dti_top.sv
 
   #- rtl/transaction_controller/rv_iommu_axi_bc.sv
