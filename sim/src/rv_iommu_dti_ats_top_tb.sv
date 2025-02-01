@@ -64,7 +64,10 @@ module rv_iommu_dti_ats_top_tb;
       .axis_req_up_o ( axis_slv_req ),
       .axis_rsp_up_i ( axis_slv_rsp ),
       .axis_req_dn_i ( axis_mst_req ),
-      .axis_rsp_dn_o ( axis_mst_rsp )
+      .axis_rsp_dn_o ( axis_mst_rsp ),
+      .core_to_iommu_inv_req_i  ('0 ),
+      .core_to_iommu_inv_valid_i('0 ),
+      .core_to_iommu_inv_ready_o(   )
    );
 
 //////////////////////////////////
@@ -202,14 +205,7 @@ module rv_iommu_dti_ats_top_tb;
 
       repeat(100)
            @(posedge clk_i);
-      /*
-      if (recv_payload === send_payload && recv_last === 1'b1) begin
-         $display("Message received successfully.");
-      end else begin
-         $error("Message mismatch or tlast error. Expected: %h, Received: %h, tlast: %b",
-                send_payload, recv_payload, recv_last);
-      end
-*/
+
       // Simulation complete
       $stop;
    end

@@ -9,6 +9,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 //
+// Date: 22/01/2025
+//
 // Authors:
 // - Maicol Ciani <maicol.ciani@unibo.it>
 //
@@ -32,38 +34,64 @@ module dti_ats_top
   output axis_req_t axis_req_up_o,
   input  axis_rsp_t axis_rsp_up_i,
 
-  // Invalidation Request IOMMU -> DTI_ATS
-  input  dti_ats_inv_req_s inv_req_cmd_i,
-  input  logic             inv_req_cmd_valid_i,
-  output logic             inv_req_cmd_ready_o
+  // Incoming Invalidation Request (from CQ)
+  input rv_iommu_cq_inv_req_s core_to_iommu_inv_req_i,
+  input logic                 core_to_iommu_inv_valid_i,
+  output logic                core_to_iommu_inv_ready_o
 
-  // TBD ...
-  // TBD ...
-  // TBD ...
   // TBD ...
 
 );
 
-/////////////////////////////
-//// Parameters and Defs ////
-/////////////////////////////
+  /////////////////////////////
+  //// Parameters and Defs ////
+  /////////////////////////////
 
-   dti_payload_s dn_msg, up_msg;
+   localparam int NUM_CMD = 2;
 
-   logic         up_msg_valid, up_msg_ready;
-   logic         dn_msg_valid, dn_msg_ready;
+   typedef enum logic {
+     CONDIS,
+     INV
+   } commands_t;
 
-   logic         connected; // Link status
-   logic         condis_ack_valid, condis_req_ready;
+   dti_payload_s dn_msg, up_msg, up_msg_condis, up_msg_inv;
+   logic up_msg_valid, up_msg_ready;
 
-   assign dn_msg_ready = condis_req_ready;
-   assign up_msg_valid = condis_ack_valid;
+   dti_payload_s [NUM_CMD-1:0] up_msg_arb;
+   logic [NUM_CMD-1:0] up_msg_valid_arb, up_msg_ready_arb;
 
-/////////////////////////
-//// Transport layer ////
-/////////////////////////
+   logic up_msg_condis_ready, up_msg_condis_valid;
+   logic up_msg_inv_ready, up_msg_inv_valid;
 
-   //Downstream AXIS Receiver
+   logic dn_msg_valid, dn_msg_ready;
+   logic dn_msg_condis_ready, dn_msg_inv_ready;
+
+   condis_cmd_state_e link_status;
+
+   logic [3:0]  granted_inv_tok;
+   logic [11:0] granted_trans_tok;
+
+   logic [31:0] frequency = 32'd100000000;
+
+   assign dn_msg_ready = dn_msg_condis_ready ||
+                         dn_msg_inv_ready ;
+
+   assign up_msg_arb[CONDIS]       = up_msg_condis;
+   assign up_msg_arb[INV]          = up_msg_inv;
+
+   assign up_msg_valid_arb[CONDIS] = up_msg_condis_valid;
+   assign up_msg_valid_arb[INV]    = up_msg_inv_valid;
+
+   assign up_msg_condis_ready      = up_msg_ready_arb[CONDIS];
+   assign up_msg_inv_ready         = up_msg_ready_arb[INV];
+
+   /////////////////////////
+   //// Transport layer ////
+   /////////////////////////
+
+   // ---------------------------------------------------------------
+   // Downstream AXIS Receiver
+   // ---------------------------------------------------------------
    dti_ats_axis_dn_fsm #(
      .DATA_WIDTH ( DATA_WIDTH ),
      .axis_req_t ( axis_req_t ),
@@ -78,7 +106,9 @@ module dti_ats_top
      .dn_msg_ready_i ( dn_msg_ready  )
    );
 
-   //Upstream AXIS Driver
+   // ---------------------------------------------------------------
+   // Upstream AXIS Driver
+   // ---------------------------------------------------------------
    dti_ats_axis_up_fsm #(
      .DATA_WIDTH ( DATA_WIDTH ),
      .axis_req_t ( axis_req_t ),
@@ -93,146 +123,96 @@ module dti_ats_top
      .up_msg_ready_o ( up_msg_ready  )
    );
 
-////////////////////////////////
-//// Finite State Machines  ////
-////////////////////////////////
+   // ---------------------------------------------------------------
+   // Arbiter to mux the the AXIS upstream interface
+   // ---------------------------------------------------------------
+   stream_arbiter #(
+      .DATA_T  ( dti_payload_s ),
+      .N_INP   ( NUM_CMD       ),
+      .ARBITER ( "rr"          )
+   ) i_inv_sync_req_arb (
+      .clk_i       ( clk_i            ),
+      .rst_ni      ( rst_ni           ),
 
-   ats_dti_condis_cmd_fsm #(
-     .MAX_TOKENS     ( MAX_TOKENS       )
-   ) i_condis_fsm (
-     .clk_i          ( clk_i            ),
-     .rst_ni         ( rst_ni           ),
-     .up_msg_o       ( up_msg           ),
-     .up_msg_valid_o ( condis_ack_valid ),
-     .up_msg_ready_i ( up_msg_ready     ),
-     .dn_msg_i       ( dn_msg           ),
-     .dn_msg_valid_i ( dn_msg_valid     ),
-     .dn_msg_ready_o ( condis_req_ready ),
-     .connected_o    ( connected        )
+      .inp_data_i  ( up_msg_arb       ),
+      .inp_valid_i ( up_msg_valid_arb ),
+      .inp_ready_o ( up_msg_ready_arb ),
+
+      .oup_data_o  ( up_msg           ),
+      .oup_valid_o ( up_msg_valid     ),
+      .oup_ready_i ( up_msg_ready     )
    );
 
-   // token stuff: counters to keep track of the tokens
-   // fifos to keep the outstanding commands
+   ////////////////////////////////
+   //// Finite State Machines  ////
+   ////////////////////////////////
+
+   // ---------------------------------------------------------------
+   // Con/Discon Message Handler
+   // ---------------------------------------------------------------
+   ats_dti_condis_cmd_fsm #(
+     .MAX_TOKENS     ( MAX_TOKENS )
+   ) i_condis_fsm (
+     .clk_i          ( clk_i  ),
+     .rst_ni         ( rst_ni ),
+     // Upstream traffic
+     .up_msg_o       ( up_msg_condis       ),
+     .up_msg_valid_o ( up_msg_condis_valid ),
+     .up_msg_ready_i ( up_msg_condis_ready ),
+     // Downstram traffic
+     .dn_msg_i       ( dn_msg              ),
+     .dn_msg_valid_i ( dn_msg_valid        ),
+     .dn_msg_ready_o ( dn_msg_condis_ready ),
+     .link_status_o  ( link_status         ),
+     // Tokens
+     .granted_inv_tok_o   ( granted_inv_tok   ),
+     .granted_trans_tok_o ( granted_trans_tok )
+   );
+
+   // ---------------------------------------------------------------
+   // Invalidation Message Handler
+   // ---------------------------------------------------------------
+   ats_dti_inv_sync_cmd_fsm #(
+     .MAX_TOKENS     ( MAX_TOKENS       )
+   ) i_inv_sync_fsm (
+     .clk_i          ( clk_i            ),
+     .rst_ni         ( rst_ni           ),
+     .freq_i         ( frequency        ),
+     // IOMMU IFENCE command
+     .fence_i        ( 1'b0             ), //TBD
+     .fence_comp_o   (                  ), //TBD
+     // Upstream traffic
+     .up_msg_o       ( up_msg_inv       ),
+     .up_msg_valid_o ( up_msg_inv_valid ),
+     .up_msg_ready_i ( up_msg_inv_ready ),
+     // Upstream traffic
+     .dn_msg_i       ( dn_msg           ),
+     .dn_msg_valid_i ( dn_msg_valid     ),
+     .dn_msg_ready_o ( dn_msg_inv_ready ),
+     // Upstream traffic
+     .core_to_iommu_inv_req_i   ( core_to_iommu_inv_req_i   ),
+     .core_to_iommu_inv_valid_i ( core_to_iommu_inv_valid_i ),
+     .core_to_iommu_inv_ready_o ( core_to_iommu_inv_ready_o ),
+     // Timeout and status signals
+     .granted_inv_tok_i         ( granted_inv_tok           ),
+     .timeout_o                 (       ), //TBD
+     .link_status_i             ( link_status  )  //connected
+   );
+
+   // ---------------------------------------------------------------
+   // Translation Message Handler
+   // ---------------------------------------------------------------
+
+   // ---------------------------------------------------------------
+   // Page Request Message Handler
+   // ---------------------------------------------------------------
+
+   // ---------------------------------------------------------------
+   // Boh
+   // ---------------------------------------------------------------
+
+   // ---------------------------------------------------------------
+   // Boh
+   // ---------------------------------------------------------------
 
  endmodule
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
-   typedef enum logic [1:0] {
-     DISCONNECTED,
-     REQ_CONNECTED,
-     CONNECTED,
-     REQ_DISCONNECTED
-   } condis_cmd_state_e;
-
-   condis_cmd_state_e condis_cmd_cs, condis_cmd_ns;
-
-   dti_ats_condis_req_s condis_req;
-   dti_ats_condis_ack_s condis_ack;
-
-   always_comb begin : condis_cmd_fsm
-      // Message condis ack defaults
-      condis_ack.msg_type          <= DTI_ATS_CONDIS_ACK;           // condis ack encoding
-      condis_ack.state             <= 1'b0;                         // by default, disconnected
-      condis_ack.reserved_0        <= 3'b0;                         // SBZ
-      condis_ack.version           <= 4'b0011;                       // DTI-ATSv4 encoding
-      condis_ack.tok_trans_gnt_lsb <= condis_req.tok_trans_req_lsb;
-      condis_ack.sup_pri           <= 1'b1;                         // Page Request Intf supported
-      condis_ack.reserved_1        <= 4'b0;                         // SBZ
-      condis_ack.sup_t             <= condis_req.sup_t;
-      condis_ack.reserved_2        <= 2'b0;                         // SBZ
-      condis_ack.tok_trans_gnt_msb <= condis_req.tok_trans_req_msb;
-      condis_ack.unused            <= 128'b0;
-      // Handshake signals
-      condis_ack_valid             <= 1'b0;
-      condis_req_ready             <= 1'b0;
-      // Link status
-      connected                    <= 1'b0;
-
-      case(condis_cmd_cs)
-        DISCONNECTED: begin
-           if(dn_msg_valid && dn_msg[3:0] == DTI_ATS_CONDIS_REQ) begin
-             condis_req_ready <= 1'b1;
-             condis_cmd_ns <= REQ_CONNECTED;
-           end else begin
-             condis_cmd_ns <= DISCONNECTED;
-           end
-        end
-        REQ_CONNECTED: begin
-           if(condis_req.protocol == 1'b1 && condis_req.state == 1'b1
-              && {condis_req.tok_trans_req_msb, condis_req.tok_trans_req_lsb} <= MAX_TOKENS) begin
-             condis_ack.state <= 1'b1;
-             condis_ack_valid <= 1'b1;
-             if(up_msg_ready && up_msg_valid)
-               condis_cmd_ns <= CONNECTED;
-             else
-               condis_cmd_ns <= REQ_CONNECTED;
-           end else begin
-             condis_ack_valid <= 1'b1;
-             if(up_msg_ready && up_msg_valid)
-               condis_cmd_ns <= DISCONNECTED;
-             else
-               condis_cmd_ns <= REQ_CONNECTED;
-           end
-        end
-        CONNECTED: begin
-           connected <= 1'b1;
-           if(dn_msg_valid && dn_msg[3:0] == DTI_ATS_CONDIS_REQ) begin
-             condis_req_ready <= 1'b1;
-             condis_cmd_ns <= REQ_DISCONNECTED;
-           end else begin
-             condis_cmd_ns <= CONNECTED;
-           end
-        end
-        REQ_DISCONNECTED: begin         // check what to do when the state=1 even if for a disconnect req. not clear from spec.
-          condis_ack_valid <= 1'b1;
-           if(up_msg_ready && up_msg_valid) begin
-             condis_cmd_ns <= DISCONNECTED;
-           end else begin
-             condis_cmd_ns <= REQ_DISCONNECTED;
-           end
-        end
-        default: begin
-           condis_cmd_ns <= DISCONNECTED;
-        end
-      endcase
-   end
-
-///////////////////////////
-//// Sequential Logic  ////
-///////////////////////////
-
-   always_ff @(posedge clk_i or negedge rst_ni) begin : condis_state_update
-      if(~rst_ni)
-        condis_cmd_cs <= DISCONNECTED;
-      else
-        condis_cmd_cs <= condis_cmd_ns;
-   end
-
-   always_ff @(posedge clk_i or negedge rst_ni) begin : dn_condis_req
-      if(~rst_ni)
-        condis_req <= '0;
-      else if (dn_msg[3:0] == DTI_ATS_CONDIS_REQ && dn_msg_valid && dn_msg_ready)
-        condis_req <= dti_ats_condis_req_s'(dn_msg);
-   end
-
-   always_ff @(posedge clk_i or negedge rst_ni) begin : up_condis_ack
-      if(~rst_ni)
-        up_msg <= '0;
-      else if (up_msg_valid && up_msg_ready)
-        up_msg <= dti_payload_s'(condis_ack);
-   end
-*/
