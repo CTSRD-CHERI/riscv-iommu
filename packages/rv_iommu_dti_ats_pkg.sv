@@ -51,12 +51,18 @@ package rv_iommu_dti_ats_pkg;
       DTI_ATS_PAGE_RESP   = 4'h9
   } dti_ats_msg_type_up_e;
 
-   typedef enum logic [1:0] {
+  typedef enum logic [7:0] {
+      ATCI_NOPASID      = 8'h31,
+      ATCI_PASID_GLOBAL = 8'h33,
+      ATCI_PASID        = 8'h39
+  } dti_ats_inv_op_t;
+
+  typedef enum logic [1:0] {
      DISCONNECTED,
      REQ_CONNECTED,
      CONNECTED,
      REQ_DISCONNECTED
-   } condis_cmd_state_e;
+  } condis_cmd_state_e;
 
   // --------------------------------------------------------------------------
   // Structs for Messages
@@ -174,6 +180,10 @@ package rv_iommu_dti_ats_pkg;
 
   typedef struct packed {
   }dti_ats_trans_fault_s;
+
+  ///////////////////////////////
+  //// Page Request Commands ////
+  ///////////////////////////////
 
   //Page Request Messages
   typedef struct packed {

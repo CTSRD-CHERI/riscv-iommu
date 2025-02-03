@@ -38,7 +38,10 @@ module ats_dti_condis_cmd_fsm
   output logic [3:0]   granted_inv_tok_o,
 
   // Link status
-  output logic [1:0]   link_status_o
+  output logic [1:0]   link_status_o,
+
+  // T bit support
+  output logic         t_bit_o
 );
 
 
@@ -50,7 +53,6 @@ module ats_dti_condis_cmd_fsm
 
    dti_ats_condis_req_s condis_req;
    dti_ats_condis_ack_s condis_ack;
-
 
    logic        sample_tokens;
 
@@ -74,6 +76,7 @@ module ats_dti_condis_cmd_fsm
       up_msg_valid_o               <= 1'b0;
       up_msg_o                     <= '0;
       sample_tokens                <= 1'b0;
+      t_bit_o                      <= 1'b0;
 
       case(condis_cmd_cs)
         DISCONNECTED: begin
@@ -104,6 +107,7 @@ module ats_dti_condis_cmd_fsm
            end
         end
         CONNECTED: begin
+           t_bit_o <= condis_req.sup_t;
            if(dn_msg_valid_i && dn_msg_i[3:0] == DTI_ATS_CONDIS_REQ) begin
              dn_msg_ready_o <= 1'b1;
              condis_cmd_ns <= REQ_DISCONNECTED;
@@ -144,7 +148,7 @@ module ats_dti_condis_cmd_fsm
         condis_req <= dti_ats_condis_req_s'(dn_msg_i);
    end
 
-   always_ff @(posedge clk_i or negedge rst_ni) begin : dn_condis_req
+   always_ff @(posedge clk_i or negedge rst_ni) begin : token_assignment
       if(~rst_ni) begin
          granted_trans_tok_o <= '0;
          granted_inv_tok_o   <= '0;
@@ -152,7 +156,7 @@ module ats_dti_condis_cmd_fsm
          granted_trans_tok_o <= '0;
          granted_inv_tok_o   <= '0;
       end else if (sample_tokens) begin
-         granted_trans_tok_o <= {condis_ack.tok_trans_req_lsb,condis_ack.tok_trans_req_lsb};
+         granted_trans_tok_o <= {condis_ack.tok_trans_gnt_msb,condis_ack.tok_trans_gnt_lsb};
          granted_inv_tok_o <= condis_req.tok_inv_gnt;
       end
    end

@@ -73,6 +73,8 @@ module dti_ats_top
 
    logic [31:0] frequency = 32'd100000000;
 
+   logic        t_bit;
+
    assign dn_msg_ready = dn_msg_condis_ready ||
                          dn_msg_inv_ready ;
 
@@ -166,7 +168,9 @@ module dti_ats_top
      .link_status_o  ( link_status         ),
      // Tokens
      .granted_inv_tok_o   ( granted_inv_tok   ),
-     .granted_trans_tok_o ( granted_trans_tok )
+     .granted_trans_tok_o ( granted_trans_tok ),
+     // T bit
+     .t_bit_o             ( t_bit )
    );
 
    // ---------------------------------------------------------------
@@ -196,6 +200,7 @@ module dti_ats_top
      // Timeout and status signals
      .granted_inv_tok_i         ( granted_inv_tok           ),
      .timeout_o                 (       ), //TBD
+     .t_bit_i                   ( tbit  ),
      .link_status_i             ( link_status  )  //connected
    );
 
