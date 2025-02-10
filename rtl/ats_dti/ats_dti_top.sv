@@ -37,7 +37,9 @@ module dti_ats_top
   // Incoming Invalidation Request (from CQ)
   input rv_iommu_cq_inv_req_s core_to_iommu_inv_req_i,
   input logic                 core_to_iommu_inv_valid_i,
-  output logic                core_to_iommu_inv_ready_o
+  output logic                core_to_iommu_inv_ready_o,
+
+  output logic                timeout_o
 
   // TBD ...
 
@@ -71,7 +73,7 @@ module dti_ats_top
    logic [3:0]  granted_inv_tok;
    logic [11:0] granted_trans_tok;
 
-   logic [31:0] frequency = 32'd100000000;
+   logic [31:0] frequency = 32'd10;
 
    logic        t_bit;
 
@@ -199,8 +201,8 @@ module dti_ats_top
      .core_to_iommu_inv_ready_o ( core_to_iommu_inv_ready_o ),
      // Timeout and status signals
      .granted_inv_tok_i         ( granted_inv_tok           ),
-     .timeout_o                 (       ), //TBD
-     .t_bit_i                   ( tbit  ),
+     .timeout_o                 ( timeout_o                 ),
+     .t_bit_i                   ( t_bit ),
      .link_status_i             ( link_status  )  //connected
    );
 

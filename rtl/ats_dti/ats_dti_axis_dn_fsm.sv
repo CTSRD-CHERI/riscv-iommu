@@ -46,14 +46,12 @@ module dti_ats_axis_dn_fsm
   // Internal Variables
   dti_ats_msg_type_up_e msg_type;
 
-  logic payload;
-
   // State Transition Logic
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni)
-        current_state <= IDLE;
+        current_state = IDLE;
     else
-        current_state <= next_state;
+        current_state = next_state;
   end
 
   // Next State Logic
@@ -77,32 +75,26 @@ module dti_ats_axis_dn_fsm
   end
 
   // Output and Payload Logic
-  always_ff @(posedge clk_i) begin
-    if (!rst_ni) begin
-      axis_rsp_dn_o.tready <= 1'b0;
-      dn_msg_valid_o       <= 1'b0;
-    end else begin
-      axis_rsp_dn_o.tready <= 1'b0;
-      dn_msg_valid_o       <= 1'b0;
-      case(current_state)
-        IDLE: begin
-          if(axis_req_dn_i.tvalid) begin
-            axis_rsp_dn_o.tready <= 1'b1;
-          end
+  always_comb begin
+    axis_rsp_dn_o.tready = 1'b0;
+    dn_msg_valid_o       = 1'b0;
+    case(current_state)
+      IDLE: begin
+        if(axis_req_dn_i.tvalid) begin
+          axis_rsp_dn_o.tready = 1'b1;
         end
-        RECEIVING: begin
-          dn_msg_valid_o <= 1'b1;
-        end
-      endcase
-    end
-  end // always_ff @ (posedge clk_i)
+      end
+      RECEIVING: begin
+        dn_msg_valid_o = 1'b1;
+      end
+    endcase
+  end
 
-
-   always_ff @(posedge clk_i or negedge rst_ni) begin : dn_condis_req
-      if(~rst_ni)
-        dn_msg_o <= '0;
-      else if (axis_req_dn_i.tvalid && axis_rsp_dn_o.tready)
-        dn_msg_o <= axis_req_dn_i.t.data;
-   end
+  always_ff @(posedge clk_i or negedge rst_ni) begin : dn_condis_req
+     if(~rst_ni)
+       dn_msg_o = '0;
+     else if (axis_req_dn_i.tvalid && axis_rsp_dn_o.tready)
+       dn_msg_o = axis_req_dn_i.t.data;
+  end
 
 endmodule

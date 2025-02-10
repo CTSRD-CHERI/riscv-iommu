@@ -165,21 +165,60 @@ package rv_iommu_dti_ats_pkg;
      logic [3:0]   s_msg_type;
   } dti_ats_sync_ack_s;
 
-  /*
-
   //////////////////////////////
   //// Translation Commands ////
   //////////////////////////////
 
   //Translation Request Messages
   typedef struct packed {
+     logic [51:0] IA;
+     logic [11:0] reserved_2;
+     logic [19:0] ssid;
+     logic [11:0] reserved_1;
+     logic [31:0] sid;
+     logic [3:0]  trans_id_msb;
+     logic [4:0]  reserved_0;
+     logic        CXL;
+     logic        ssv;
+     logic        t;
+     logic        nW;
+     logic        InD;
+     logic        PnU;
+     logic        protocol;
+     logic [7:0]  trans_id_lsb;
+     logic [3:0]  QoS;
+     logic [3:0]  s_msg_type;
   } dti_ats_trans_req_s;
 
-  typedef struct packed {
-  } dti_ats_trans_resp_s;
 
   typedef struct packed {
-  }dti_ats_trans_fault_s;
+     logic [51:0] OA;
+     logic [12:0] reserved_5;
+     logic [2:0]  AMA;
+     logic [7:0]  reserved_4;
+     logic [3:0]  trans_rng;
+     logic [3:0]  trans_id_msb;
+     logic [4:0]  reserved_3;
+     logic        te;
+     logic [2:0]  reserved_2;
+     logic        allow_x;
+     logic        allow_w;
+     logic        allow_r;
+     logic [45:0] reserved_1;
+     logic        bypass;
+     logic [2:0]  reserved_0;
+     logic        CLX_IO;
+     logic        untrans;
+     logic [7:0]  trans_id_lsb;
+     logic [3:0]  s_msg_type;
+  } dti_ats_trans_resp_s;
+
+/*
+  typedef struct packed {
+  } dti_ats_trans_fault_s;
+
+  typedef struct packed {
+  } rv_iommu_trans_req_s;
 
   ///////////////////////////////
   //// Page Request Commands ////
@@ -197,7 +236,6 @@ package rv_iommu_dti_ats_pkg;
 
   typedef struct packed {
   } dti_ats_page_respack_s;
-
- */
+  */
 
 endpackage

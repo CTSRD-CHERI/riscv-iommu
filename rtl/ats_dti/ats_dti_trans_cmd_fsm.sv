@@ -15,20 +15,13 @@
 // - Maicol Ciani <maicol.ciani@unibo.it>
 //
 
-module ats_dti_inv_sync_cmd_fsm
+module ats_dti_trans_cmd_fsm
   import rv_iommu_dti_ats_pkg::*;
 #(
   parameter int MAX_TOKENS = 16
 ) (
   input logic          clk_i,
   input logic          rst_ni,
-
-  // Fence handle
-  input logic          fence_i,
-  output logic         fence_comp_o,
-
-  // Frequency to handle timeouts
-  input logic [31:0]   freq_i,
 
   // Forward messages to PCIe
   output dti_payload_s up_msg_o,
@@ -40,19 +33,17 @@ module ats_dti_inv_sync_cmd_fsm
   input logic          dn_msg_valid_i,
   output logic         dn_msg_ready_o,
 
-  // Incoming Invalidation Request (from CQ)
-  input rv_iommu_cq_inv_req_s core_to_iommu_inv_req_i,
-  input logic                 core_to_iommu_inv_valid_i,
-  output logic                core_to_iommu_inv_ready_o,
+  // Translation request towards IOMMU
+  input  rv_iommu_trans_req_s dti_to_iommu_trans_req_i,
+  input  logic                dti_to_iommu_trans_valid_i,
+  output logic                dti_to_iommu_trans_ready_o,
 
-  input logic [3:0]           granted_inv_tok_i,
+  input logic [11:0]         granted_trans_tok_i,
 
   // T bit support (defined during condis)
-  input logic                 t_bit_i,
+  input logic                t_bit_i,
   // Connection status
-  input  condis_cmd_state_e   link_status_i,
-  // Timeout/error
-  output logic                timeout_o
+  input  condis_cmd_state_e  link_status_i
 );
 
    // ---------------------------------------------------------------
@@ -133,26 +124,6 @@ module ats_dti_inv_sync_cmd_fsm
                     core_to_iommu_inv_req.dseg :
                     8'b0;
 
-   // ---------------------------------------------------------------
-   // Arbiter to mux the the two output inv/sync request interfaces
-   // ---------------------------------------------------------------
-   stream_arbiter #(
-      .DATA_T  ( dti_payload_s ),
-      .N_INP   ( 2             ),
-      .ARBITER ( "rr"          )
-   ) i_inv_sync_req_arb (
-      .clk_i       ( clk_i            ),
-      .rst_ni      ( rst_ni           ),
-
-      .inp_data_i  ( up_msg_arb       ),
-      .inp_valid_i ( up_msg_valid_arb ),
-      .inp_ready_o ( up_msg_ready_arb ),
-
-      .oup_data_o  ( up_msg_o         ),
-      .oup_valid_o ( up_msg_valid_o   ),
-      .oup_ready_i ( up_msg_ready_i   )
-   );
-
    // --------------------------------------------------------------
    // FIFO for buffering incoming input inv req from IOMMU
    // --------------------------------------------------------------
@@ -178,7 +149,7 @@ module ats_dti_inv_sync_cmd_fsm
    // -------------------------------------------------------------
    // Out-of-order invalidation handler, scoreboard approach
    // -------------------------------------------------------------
-   ats_dti_inv_scoreboard #(
+   ats_dti_trans_scoreboard #(
      .DEPTH ( 32 )
    ) i_inv_scoreboard (
      .clk_i        ( clk_i           ),
@@ -216,36 +187,6 @@ module ats_dti_inv_sync_cmd_fsm
    // -------------------------------------------------------------
    // Invalidation request logic
    // -------------------------------------------------------------
-
-   always_comb begin : inv_req_range_field
-     if (!core_to_iommu_inv_req.s) begin
-       // S == 0: Only a single 4KB page is used.
-       r = 6'd0;
-     end else begin
-       // S == 1: Start with r = 1 (i.e. at least 2 pages = 8KB).
-       r = 6'd1;
-       // Loop through VA bits from bit 12 to bit 63.
-       for (int i = 7; i < 52; i = i + 7) begin
-         if (core_to_iommu_inv_req.untrans_addr[i] == 1'b0) begin
-           // Stop when a 0 is encountered.
-           break;
-         end
-         r = r + 6'd1;
-       end
-       // Clamp r to a maximum of 52.
-       if (r > 6'd52)
-         r = 6'd52;
-     end
-   end
-
-   always_comb begin : inv_req_op_field
-      // By default, NOPASID inv req
-      operation = ATCI_NOPASID;
-      if(core_to_iommu_inv_req.g)
-        operation = ATCI_PASID_GLOBAL;
-      else if (core_to_iommu_inv_req.pv)
-        operation = ATCI_PASID;
-   end
 
    always_comb begin : send_inv_req
       fifo_pop = 1'b0;
@@ -341,62 +282,6 @@ module ats_dti_inv_sync_cmd_fsm
          end
       end
    end
-
-   // -------------------------------------------------------------
-   // // Synchronization Request logic
-   // -------------------------------------------------------------
-   always_comb begin : send_sync_req
-      sync_req_valid = 1'b0;
-      sync_req_ns = SEND_CMD;
-      fence_comp_o = 1'b0;
-      iommu_to_pcie_sync_req = '0;
-      if(link_status_i == CONNECTED) begin
-         case(sync_req_cs)
-           SEND_CMD: begin
-              if(issue_sync_req) begin
-                 sync_req_valid = 1'b1;
-                 if(sync_req_ready && sync_req_valid) begin
-                   sync_req_ns = SEND_CMD;
-                   if(fence_i)
-                     fence_comp_o = 1'b1;
-                 end else begin
-                   sync_req_ns = WAIT_READY;
-                 end
-              end
-           end
-           WAIT_READY: begin
-              sync_req_valid = 1'b1;
-              if(sync_req_ready && sync_req_valid) begin
-                 sync_req_ns = SEND_CMD;
-                 if(fence_i)
-                   fence_comp_o = 1'b1;
-              end else begin
-                 sync_req_ns = WAIT_READY;
-              end
-           end
-           default: sync_req_ns = SEND_CMD;
-         endcase
-      end
-   end
-
-   // -------------------------------------------------------------
-   // Synchronization Acknowledge logic
-   // -------------------------------------------------------------
-   always_comb begin : receive_sync_ack
-      sync_ack_valid = 1'b0;
-      sync_ack_err = 1'b0;
-      dn_msg_sync_ack_ready = 1'b0;
-      if(link_status_i == CONNECTED) begin
-         if(dn_msg_valid_i &&
-            dn_msg_i[3:0] == DTI_ATS_SYNC_ACK) begin
-            dn_msg_sync_ack_ready = 1'b1;
-            sync_ack_valid = 1'b1;
-            if(pcie_to_iommu_sync_ack.error)
-              sync_ack_err = 1'b1;
-         end
-      end
-   end
-
 
    ///////////////////////////
    //// Sequential Logic  ////
