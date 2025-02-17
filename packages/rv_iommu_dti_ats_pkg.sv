@@ -14,18 +14,34 @@
 // Authors:
 // - Maicol Ciani <maicol.ciani@unibo.it>
 //
+// Description: this pkg defines the msg structures as from DTI-ATSv4 specification.
+//
 
 package rv_iommu_dti_ats_pkg;
+
+  import rv_iommu::*;
 
   // --------------------------------------------------------------------------
   // Top-Level Payload Structure
   // --------------------------------------------------------------------------
 
   parameter int PAYLOAD_SIZE = 160;
+  typedef logic [63:0] addr_t;
+  typedef logic [55:0] paddr_t;
 
   typedef struct packed {
      logic [PAYLOAD_SIZE-1:0] data;
   } dti_payload_s;
+
+  // -----------------------------------------------
+  // Define Translation Scoreboard Structure
+  // -----------------------------------------------
+
+  typedef struct packed {
+    logic [11:0]  trans_id;
+    logic [31:0]  sid;
+    logic         t;
+  } dti_ats_sb_req_s;
 
   // --------------------------------------------------------------------------
   // Enums
@@ -169,7 +185,27 @@ package rv_iommu_dti_ats_pkg;
   //// Translation Commands ////
   //////////////////////////////
 
-  //Translation Request Messages
+  typedef struct packed {
+     addr_t       iova;
+     device_id_t  did;
+     logic        pid_valid;
+     process_id_t pid;
+     ttype_t      ttype;
+     logic        priv;
+     logic        is_debug;
+     logic        nW;       // Write permission
+     logic        x;        // Execute permission
+  } rv_iommu_trans_req_s;
+
+  typedef struct packed {
+     // aggiungere flag per indicare error type
+     logic            error;
+     logic            ignore;
+     paddr_t          spaddr;
+     logic            is_mrif;
+     mrifc_content_t  mrif_data;
+  } rv_iommu_trans_resp_s;
+
   typedef struct packed {
      logic [51:0] IA;
      logic [11:0] reserved_2;
@@ -189,7 +225,6 @@ package rv_iommu_dti_ats_pkg;
      logic [3:0]  QoS;
      logic [3:0]  s_msg_type;
   } dti_ats_trans_req_s;
-
 
   typedef struct packed {
      logic [51:0] OA;
@@ -213,17 +248,21 @@ package rv_iommu_dti_ats_pkg;
      logic [3:0]  s_msg_type;
   } dti_ats_trans_resp_s;
 
-/*
   typedef struct packed {
+     logic [127:0] unused;
+     logic [3:0] trans_id_msb;
+     logic [8:0] reserved_2;
+     logic [1:0] fault_type;
+     logic [4:0] reserved_0;
+     logic [7:0] trans_id_lsb;
+     logic [3:0] s_msg_type;
   } dti_ats_trans_fault_s;
-
-  typedef struct packed {
-  } rv_iommu_trans_req_s;
 
   ///////////////////////////////
   //// Page Request Commands ////
   ///////////////////////////////
 
+  /*
   //Page Request Messages
   typedef struct packed {
   } dti_ats_page_req_s;

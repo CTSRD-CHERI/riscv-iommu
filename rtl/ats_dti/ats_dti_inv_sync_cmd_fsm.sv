@@ -41,9 +41,9 @@ module ats_dti_inv_sync_cmd_fsm
   output logic         dn_msg_ready_o,
 
   // Incoming Invalidation Request (from CQ)
-  input rv_iommu_cq_inv_req_s core_to_iommu_inv_req_i,
-  input logic                 core_to_iommu_inv_valid_i,
-  output logic                core_to_iommu_inv_ready_o,
+  input rv_iommu_cq_inv_req_s iommu_to_dti_inv_req_i,
+  input logic                 iommu_to_dti_inv_valid_i,
+  output logic                iommu_to_dti_inv_ready_o,
 
   input logic [3:0]           granted_inv_tok_i,
 
@@ -95,7 +95,7 @@ module ats_dti_inv_sync_cmd_fsm
      WAIT_READY
    } inv_sync_req_state_t;
 
-   rv_iommu_cq_inv_req_s core_to_iommu_inv_req;
+   rv_iommu_cq_inv_req_s iommu_to_dti_inv_req;
 
    dti_ats_inv_req_s     iommu_to_pcie_inv_req;
    dti_ats_inv_ack_s     pcie_to_iommu_inv_ack;
@@ -122,15 +122,15 @@ module ats_dti_inv_sync_cmd_fsm
 
    assign dn_msg = dti_ats_inv_comp_s'(dn_msg_i);
 
-   assign core_to_iommu_inv_ready_o = ~fifo_full && ~sb_full;
+   assign iommu_to_dti_inv_ready_o = ~fifo_full;
 
    assign pcie_to_iommu_inv_comp = dti_ats_inv_comp_s'(dn_msg_i);
    assign pcie_to_iommu_inv_ack  = dti_ats_inv_ack_s'(dn_msg_i);
 
    assign pcie_to_iommu_sync_ack = dti_ats_sync_ack_s'(dn_msg_i);
 
-   assign segment = core_to_iommu_inv_req.dsv  ?
-                    core_to_iommu_inv_req.dseg :
+   assign segment = iommu_to_dti_inv_req.dsv  ?
+                    iommu_to_dti_inv_req.dseg :
                     8'b0;
 
    // ---------------------------------------------------------------
@@ -169,9 +169,9 @@ module ats_dti_inv_sync_cmd_fsm
      .full_o    ( fifo_full  ),
      .empty_o   ( fifo_empty ),
      .usage_o   (            ),
-     .data_i    ( core_to_iommu_inv_req_i                 ),
-     .push_i    ( ~fifo_full && core_to_iommu_inv_valid_i ),
-     .data_o    ( core_to_iommu_inv_req                   ),
+     .data_i    ( iommu_to_dti_inv_req_i                 ),
+     .push_i    ( ~fifo_full && iommu_to_dti_inv_valid_i ),
+     .data_o    ( iommu_to_dti_inv_req                   ),
      .pop_i     ( fifo_pop                                )
    );
 
@@ -218,7 +218,7 @@ module ats_dti_inv_sync_cmd_fsm
    // -------------------------------------------------------------
 
    always_comb begin : inv_req_range_field
-     if (!core_to_iommu_inv_req.s) begin
+     if (!iommu_to_dti_inv_req.s) begin
        // S == 0: Only a single 4KB page is used.
        r = 6'd0;
      end else begin
@@ -226,7 +226,7 @@ module ats_dti_inv_sync_cmd_fsm
        r = 6'd1;
        // Loop through VA bits from bit 12 to bit 63.
        for (int i = 7; i < 52; i = i + 7) begin
-         if (core_to_iommu_inv_req.untrans_addr[i] == 1'b0) begin
+         if (iommu_to_dti_inv_req.untrans_addr[i] == 1'b0) begin
            // Stop when a 0 is encountered.
            break;
          end
@@ -241,9 +241,9 @@ module ats_dti_inv_sync_cmd_fsm
    always_comb begin : inv_req_op_field
       // By default, NOPASID inv req
       operation = ATCI_NOPASID;
-      if(core_to_iommu_inv_req.g)
+      if(iommu_to_dti_inv_req.g)
         operation = ATCI_PASID_GLOBAL;
-      else if (core_to_iommu_inv_req.pv)
+      else if (iommu_to_dti_inv_req.pv)
         operation = ATCI_PASID;
    end
 
@@ -255,24 +255,24 @@ module ats_dti_inv_sync_cmd_fsm
       iommu_to_pcie_inv_req = '0;
       // -------------------------------------------------------
       // Populate the fields from the FIFO data:
-      // (core_to_iommu_inv_req is the output of the FIFO)
+      // (iommu_to_dti_inv_req is the output of the FIFO)
       // -------------------------------------------------------
       // 1) Invalidate request message type
       iommu_to_pcie_inv_req.msg_type = DTI_ATS_INV_REQ; // 4'hC
       // 2) Virtual address
       //    Map "untrans_addr" -> "va"
-      iommu_to_pcie_inv_req.va   = core_to_iommu_inv_req.untrans_addr;
+      iommu_to_pcie_inv_req.va   = iommu_to_dti_inv_req.untrans_addr;
       // 3) Indicate whether it's a 'T' type invalidation
       //    Established during connection procedure
       iommu_to_pcie_inv_req.t    = t_bit_i;
       // 4) Range: Define the size of the addr region to invalidate
       iommu_to_pcie_inv_req.range = r;
       // 5) SID: concatenantion of RID and (if valid) the Segment (for multi-hier)
-      iommu_to_pcie_inv_req.sid = {8'b0, segment, core_to_iommu_inv_req.rid};
+      iommu_to_pcie_inv_req.sid = {8'b0, segment, iommu_to_dti_inv_req.rid};
 
       // 6) SSID: populate this field iff we have ATCI_PASID operation
-      iommu_to_pcie_inv_req.ssid = core_to_iommu_inv_req.pv  ?
-                                   core_to_iommu_inv_req.pid :
+      iommu_to_pcie_inv_req.ssid = iommu_to_dti_inv_req.pv  ?
+                                   iommu_to_dti_inv_req.pid :
                                    20'b0;
       // 7) Operation: we have 8 bits. Encoding according to DTI spec
       iommu_to_pcie_inv_req.operation = operation;

@@ -17,6 +17,7 @@
 
 module ats_dti_trans_cmd_fsm
   import rv_iommu_dti_ats_pkg::*;
+  import rv_iommu::*;
 #(
   parameter int MAX_TOKENS = 16
 ) (
@@ -34,270 +35,198 @@ module ats_dti_trans_cmd_fsm
   output logic         dn_msg_ready_o,
 
   // Translation request towards IOMMU
-  input  rv_iommu_trans_req_s dti_to_iommu_trans_req_i,
-  input  logic                dti_to_iommu_trans_valid_i,
-  output logic                dti_to_iommu_trans_ready_o,
+  output rv_iommu_trans_req_s  dti_to_iommu_trans_req_o,
+  output logic                 dti_to_iommu_trans_valid_o,
+  input  logic                 dti_to_iommu_trans_ready_i,
 
-  input logic [11:0]         granted_trans_tok_i,
+  // Translation response from IOMMU
+  input  rv_iommu_trans_resp_s iommu_to_dti_trans_resp_i,
+  input  logic                 iommu_to_dti_trans_valid_i,
+  output logic                 iommu_to_dti_trans_ready_o,
+
+  // Maximum outstandin requests
+  input logic [11:0]   gnt_trans_tok_i,
 
   // T bit support (defined during condis)
-  input logic                t_bit_i,
+  input logic          t_bit_i,
+
   // Connection status
-  input  condis_cmd_state_e  link_status_i
+  input  condis_cmd_state_e link_status_i
 );
 
    // ---------------------------------------------------------------
    // Definitions and assignments
    // ---------------------------------------------------------------
 
-   logic inv_req_valid, inv_req_ready;
-   logic sync_req_valid, sync_req_ready, sync_ack_valid;
+   logic fifo_push, fifo_pop, fifo_full;
+   logic [$clog2(MAX_TOKENS)-1:0] fifo_usage;
 
-   logic fifo_empty, fifo_full, fifo_pop;
-   logic dn_msg_comp_ready, dn_msg_ack_ready, dn_msg_sync_ack_ready;
+   logic [11:0] trans_id_n, trans_id_c;
 
-   logic issue_sync_req, sb_sync_req;
+   logic sample_trans_rsp;
 
-   logic inv_ack_valid, inv_comp_valid;
+   typedef enum logic [1:0] {
+     SEND_TRANS_REQ,
+     WAIT_TRANS_RSP,
+     SEND_FAULT,
+     SEND_COMPL
+   } trans_req_state_t;
 
-   logic inv_comp_err, sync_ack_err, inv_req_timeout;
+   trans_req_state_t     trans_rsp_cs, trans_rsp_ns;
 
-   logic sb_full, sb_empty;
+   dti_ats_trans_req_s   trans_req;
+   dti_ats_trans_req_s   fifo_trans_req;
 
-   logic [5:0] r; // range field
+   rv_iommu_trans_resp_s iommu_trans_resp;
 
-   logic [7:0] segment;
+   dti_ats_trans_resp_s  dti_trans_compl;
+   dti_ats_trans_fault_s dti_trans_fault;
 
-   dti_ats_inv_op_t operation;
-
-   logic [4:0] next_itag_q, next_itag_n;
-
-   dti_payload_s [1:0] up_msg_arb;
-   logic [1:0]   up_msg_valid_arb;
-   logic [1:0]   up_msg_ready_arb;
-
-   typedef enum logic {
-     INV,
-     SYNC
-   } commands_t;
-
-   typedef enum logic {
-     SEND_CMD,
-     WAIT_READY
-   } inv_sync_req_state_t;
-
-   rv_iommu_cq_inv_req_s core_to_iommu_inv_req;
-
-   dti_ats_inv_req_s     iommu_to_pcie_inv_req;
-   dti_ats_inv_ack_s     pcie_to_iommu_inv_ack;
-   dti_ats_inv_comp_s    pcie_to_iommu_inv_comp, dn_msg;
-
-   dti_ats_sync_req_s    iommu_to_pcie_sync_req;
-   dti_ats_sync_ack_s    pcie_to_iommu_sync_ack;
-
-   inv_sync_req_state_t  inv_req_cs, inv_req_ns;
-   inv_sync_req_state_t  sync_req_cs, sync_req_ns;
-
-   assign up_msg_arb[INV]        = dti_payload_s'(iommu_to_pcie_inv_req);
-   assign up_msg_arb[SYNC]       = dti_payload_s'(iommu_to_pcie_sync_req);
-   assign up_msg_valid_arb[INV]  = inv_req_valid;
-   assign up_msg_valid_arb[SYNC] = sync_req_valid;
-   assign inv_req_ready          = up_msg_ready_arb[INV];
-   assign sync_req_ready         = up_msg_ready_arb[SYNC];
-
-   assign dn_msg_ready_o = dn_msg_comp_ready || dn_msg_ack_ready || dn_msg_sync_ack_ready;
-
-   assign issue_sync_req = fence_i || sb_sync_req;
-
-   assign timeout_o = inv_req_timeout || inv_comp_err || sync_ack_err;
-
-   assign dn_msg = dti_ats_inv_comp_s'(dn_msg_i);
-
-   assign core_to_iommu_inv_ready_o = ~fifo_full && ~sb_full;
-
-   assign pcie_to_iommu_inv_comp = dti_ats_inv_comp_s'(dn_msg_i);
-   assign pcie_to_iommu_inv_ack  = dti_ats_inv_ack_s'(dn_msg_i);
-
-   assign pcie_to_iommu_sync_ack = dti_ats_sync_ack_s'(dn_msg_i);
-
-   assign segment = core_to_iommu_inv_req.dsv  ?
-                    core_to_iommu_inv_req.dseg :
-                    8'b0;
+   assign fifo_push        = ~fifo_full && dn_msg_valid_i && dn_msg_ready_o;
+   assign fifo_trans_req   = dti_ats_trans_req_s'(dn_msg_i);
+   assign sample_trans_rsp = iommu_to_dti_trans_valid_i && iommu_to_dti_trans_ready_o;
 
    // --------------------------------------------------------------
-   // FIFO for buffering incoming input inv req from IOMMU
+   // FIFO for buffering incoming input trans request from PCIe
    // --------------------------------------------------------------
    fifo_v3 #(
-     .FALL_THROUGH  ( 1'b0                  ),
-     .DATA_WIDTH    ( PAYLOAD_SIZE          ),
-     .DEPTH         ( 16                    ),
-     .dtype         ( rv_iommu_cq_inv_req_s )
+     .FALL_THROUGH  ( 1'b0                ),
+     .DATA_WIDTH    ( PAYLOAD_SIZE        ),
+     .DEPTH         ( MAX_TOKENS          ),
+     .dtype         ( dti_ats_trans_req_s )
    ) i_inv_req_fifo (
-     .clk_i     ( clk_i      ),
-     .rst_ni    ( rst_ni     ),
-     .flush_i   ( '0         ),
-     .testmode_i( '0         ),
-     .full_o    ( fifo_full  ),
-     .empty_o   ( fifo_empty ),
-     .usage_o   (            ),
-     .data_i    ( core_to_iommu_inv_req_i                 ),
-     .push_i    ( ~fifo_full && core_to_iommu_inv_valid_i ),
-     .data_o    ( core_to_iommu_inv_req                   ),
-     .pop_i     ( fifo_pop                                )
+     .clk_i         ( clk_i          ),
+     .rst_ni        ( rst_ni         ),
+     .flush_i       ( '0             ),
+     .testmode_i    ( '0             ),
+     .full_o        ( fifo_full      ),
+     .empty_o       ( fifo_empty     ),
+     .usage_o       ( fifo_usage     ),
+     .data_i        ( fifo_trans_req ),
+     .push_i        ( fifo_push      ),
+     .data_o        ( trans_req      ),
+     .pop_i         ( fifo_pop       )
    );
 
-   // -------------------------------------------------------------
-   // Out-of-order invalidation handler, scoreboard approach
-   // -------------------------------------------------------------
-   ats_dti_trans_scoreboard #(
-     .DEPTH ( 32 )
-   ) i_inv_scoreboard (
-     .clk_i        ( clk_i           ),
-     .rst_ni       ( rst_ni          ),
-     .flush_i      ( 1'b0            ),
-     // Timeout logic
-     .freq_i       ( freq_i          ),
-     .timeout_o    ( inv_req_timeout ),
-     // Issue an inv request
-     .push_i       ( ~sb_full && inv_req_valid && inv_req_ready ),
-     .itag_i       ( iommu_to_pcie_inv_req.itag ),
-     .sid_i        ( iommu_to_pcie_inv_req.sid  ),
-     .t_bit_i      ( iommu_to_pcie_inv_req.t    ),
-     // Acknolwdge an inv request
-     .ack_i        ( inv_ack_valid  ),
-     // Complete an invalidation request
-     .completion_i ( inv_comp_valid ),
-     .comp_itag_i  ( dn_msg.itag    ),
-     .comp_sid_i   ( dn_msg.sid     ),
-     .comp_t_bit_i ( dn_msg.t       ),
-     // Invalidaiton tokens
-     .granted_inv_tok_i ( granted_inv_tok_i ),
-     // Sync request from sb (when unacknowledged inv reqs)
-     .sync_req_o        ( sb_sync_req       ),
-     // Scoreboard status
-     .full_o            ( sb_full           ),
-     .empty_o           ( sb_empty          ),
-     .usage_o           (                   )
-   );
-
-   ////////////////////////////////
-   //// Finite State Machines  ////
-   ////////////////////////////////
+   //////////////
+   //// FSM  ////
+   //////////////
 
    // -------------------------------------------------------------
-   // Invalidation request logic
+   // Translation Request Receiver
    // -------------------------------------------------------------
-
-   always_comb begin : send_inv_req
-      fifo_pop = 1'b0;
-      inv_req_valid = 1'b0;
-      inv_req_ns = SEND_CMD;
-      next_itag_n   = next_itag_q;
-      iommu_to_pcie_inv_req = '0;
-      // -------------------------------------------------------
-      // Populate the fields from the FIFO data:
-      // (core_to_iommu_inv_req is the output of the FIFO)
-      // -------------------------------------------------------
-      // 1) Invalidate request message type
-      iommu_to_pcie_inv_req.msg_type = DTI_ATS_INV_REQ; // 4'hC
-      // 2) Virtual address
-      //    Map "untrans_addr" -> "va"
-      iommu_to_pcie_inv_req.va   = core_to_iommu_inv_req.untrans_addr;
-      // 3) Indicate whether it's a 'T' type invalidation
-      //    Established during connection procedure
-      iommu_to_pcie_inv_req.t    = t_bit_i;
-      // 4) Range: Define the size of the addr region to invalidate
-      iommu_to_pcie_inv_req.range = r;
-      // 5) SID: concatenantion of RID and (if valid) the Segment (for multi-hier)
-      iommu_to_pcie_inv_req.sid = {8'b0, segment, core_to_iommu_inv_req.rid};
-
-      // 6) SSID: populate this field iff we have ATCI_PASID operation
-      iommu_to_pcie_inv_req.ssid = core_to_iommu_inv_req.pv  ?
-                                   core_to_iommu_inv_req.pid :
-                                   20'b0;
-      // 7) Operation: we have 8 bits. Encoding according to DTI spec
-      iommu_to_pcie_inv_req.operation = operation;
-      // 8) ITAG (identifier unique for each inv req)
-      iommu_to_pcie_inv_req.itag = next_itag_q;
-      // The 32-bit "unused" can remain zero
-      iommu_to_pcie_inv_req.unused = 32'h0;
+   always_comb begin : receive_trans_req
+      dn_msg_ready_o   = 1'b0;
       if(link_status_i == CONNECTED) begin
-         case(inv_req_cs)
-           SEND_CMD: begin
+         if(dn_msg_valid_i                     &&
+            dn_msg_i[3:0] == DTI_ATS_TRANS_REQ &&
+            fifo_usage <= gnt_trans_tok_i) begin
+            dn_msg_ready_o = 1'b1;
+         end
+      end
+   end
+
+   // -------------------------------------------------------------
+   // Translation Fault/Completion handler
+   // -------------------------------------------------------------
+   always_comb begin : send_trans_comp_fault_to_pcie
+      up_msg_o                   = '0;
+      up_msg_valid_o             = 1'b0;
+      fifo_pop                   = 1'b0;
+      dti_to_iommu_trans_req_o   = '0;
+      dti_to_iommu_trans_valid_o = 1'b0;
+      iommu_to_dti_trans_ready_o = 1'b0;
+      dti_trans_compl            = '0;
+      dti_trans_fault            = '0;
+      trans_rsp_ns               = trans_rsp_cs;
+      trans_id_n                 = trans_id_c;
+      if(link_status_i == CONNECTED) begin
+         case(trans_rsp_cs)
+           SEND_TRANS_REQ: begin
               if(~fifo_empty) begin
-                 inv_req_valid = 1'b1;
-                 if(inv_req_ready && inv_req_valid) begin
-                   fifo_pop = 1'b1;
-                   next_itag_n = next_itag_q + 1;
-                   inv_req_ns = SEND_CMD;
-                 end else begin
-                   inv_req_ns = WAIT_READY;
+                 dti_to_iommu_trans_req_o           = '0;
+                 dti_to_iommu_trans_req_o.iova      = trans_req.IA;
+                 dti_to_iommu_trans_req_o.did       = trans_req.sid[DevIdWidth-1:0];
+                 dti_to_iommu_trans_req_o.pid_valid = trans_req.ssv;
+                 dti_to_iommu_trans_req_o.pid       = trans_req.ssv ? trans_req.ssid : '0;
+                 dti_to_iommu_trans_req_o.ttype     = PCIE_ATS_TRANS_REQ;
+                 dti_to_iommu_trans_req_o.priv      = trans_req.PnU;
+                 dti_to_iommu_trans_req_o.is_debug  = 1'b0;
+                 dti_to_iommu_trans_req_o.nW        = trans_req.nW;
+                 dti_to_iommu_trans_req_o.x         = trans_req.InD;
+                 dti_to_iommu_trans_valid_o = 1'b1;
+                 if(dti_to_iommu_trans_valid_o &&
+                    dti_to_iommu_trans_ready_i) begin
+                   trans_rsp_ns = WAIT_TRANS_RSP;
+                   trans_id_n = {trans_req.trans_id_msb, trans_req.trans_id_msb};
                  end
               end
            end
-           WAIT_READY: begin
-              inv_req_valid = 1'b1;
-              if(inv_req_ready && inv_req_valid) begin
-                fifo_pop = 1'b1;
-                next_itag_n = next_itag_q + 1;
-                inv_req_ns = SEND_CMD;
-              end else begin
-                inv_req_ns = WAIT_READY;
+           WAIT_TRANS_RSP: begin
+              if(iommu_to_dti_trans_valid_i) begin
+                 iommu_to_dti_trans_ready_o = 1'b1;
+                 if(iommu_to_dti_trans_resp_i.error)
+                   trans_rsp_ns = SEND_FAULT;
+                 else
+                   trans_rsp_ns = SEND_COMPL;
               end
            end
-           default: inv_req_ns = SEND_CMD;
+           SEND_FAULT: begin
+              dti_trans_fault              = '0;
+              dti_trans_fault.s_msg_type   = DTI_ATS_TRANS_FAULT;
+              dti_trans_fault.trans_id_lsb = trans_req.trans_id_lsb;
+              dti_trans_fault.trans_id_msb = trans_req.trans_id_msb;
+              dti_trans_fault.fault_type   = '0; // ?
+              up_msg_o = dti_payload_s'(dti_trans_fault);
+              up_msg_valid_o = 1'b1;
+              if(up_msg_ready_i) begin
+                trans_rsp_ns = SEND_TRANS_REQ;
+                fifo_pop = 1'b1;
+              end
+           end
+           SEND_COMPL: begin
+              dti_trans_compl              = '0;
+              dti_trans_compl.s_msg_type   = DTI_ATS_TRANS_RESP;
+              dti_trans_compl.trans_id_lsb = trans_req.trans_id_lsb;
+              dti_trans_compl.trans_id_msb = trans_req.trans_id_msb;/*
+              dti_trans_compl.untrans      = ; // ?
+              dti_trans_compl.CLX_IO       = ; // ?
+              dti_trans_compl.bypass       = ; // ?
+              dti_trans_compl.allow_r      = ; // dep on iommu_trans_resp
+              dti_trans_compl.allow_w      = ; // dep on iommu_trans_resp
+              dti_trans_compl.allow_x      = ; // dep on iommu_trans_resp
+              dti_trans_compl.te           = ; // ?
+              dti_trans_compl.trans_rng    = ; // ?
+              dti_trans_compl.AMA          = ; // ?*/
+              dti_trans_compl.OA           = {8'b0, iommu_trans_resp.spaddr[55:12]};
+              up_msg_o = dti_payload_s'(dti_trans_compl);
+              up_msg_valid_o = 1'b1;
+              if(up_msg_ready_i) begin
+                trans_rsp_ns = SEND_TRANS_REQ;
+                fifo_pop = 1'b1;
+              end
+           end
+           default: trans_rsp_ns = SEND_TRANS_REQ;
          endcase
       end
    end
 
-   // -------------------------------------------------------------
-   // Invalidation Acknowledge logic
-   // -------------------------------------------------------------
-   always_comb begin : receive_inv_ack
-      inv_ack_valid = 1'b0;
-      dn_msg_ack_ready = 1'b0;
-      if(link_status_i == CONNECTED) begin
-         if(dn_msg_valid_i &&
-            dn_msg_i[3:0] == DTI_ATS_INV_ACK) begin
-            dn_msg_ack_ready = 1'b1;
-            inv_ack_valid = 1'b1;
-         end
-      end
-   end
-
-   // -------------------------------------------------------------
-   // Invalidation Completion logic
-   // -------------------------------------------------------------
-   always_comb begin : receive_inv_comp
-      inv_comp_valid = 1'b0;
-      dn_msg_comp_ready = 1'b0;
-      inv_comp_err = 1'b0;
-      if(link_status_i == CONNECTED) begin
-         if(dn_msg_valid_i &&
-            dn_msg_i[3:0] == DTI_ATS_INV_COMP) begin
-            dn_msg_comp_ready = 1'b1;
-            inv_comp_valid = 1'b1;
-            if(pcie_to_iommu_inv_comp.error)
-              inv_comp_err = 1'b1;
-         end
-      end
-   end
-
-   ///////////////////////////
-   //// Sequential Logic  ////
-   ///////////////////////////
-
-   always_ff @(posedge clk_i or negedge rst_ni) begin : inv_sync_req_state_update
+   //////////////
+   //// FFs  ////
+   //////////////
+   always_ff @(posedge clk_i or negedge rst_ni) begin
       if(~rst_ni) begin
-        inv_req_cs  = SEND_CMD;
-        sync_req_cs = SEND_CMD;
-        // Initialize the ITAG to zero
-        next_itag_q  = 5'b0;
+        trans_rsp_cs <= SEND_TRANS_REQ;
       end else begin
-        inv_req_cs  = inv_req_ns;
-        sync_req_cs = sync_req_ns;
-        // Initialize the ITAG to zero
-        next_itag_q  = next_itag_n;
+        trans_rsp_cs <= trans_rsp_ns;
+      end
+   end
+
+   always_ff @(posedge clk_i or negedge rst_ni or posedge sample_trans_rsp) begin
+      if(~rst_ni) begin
+        iommu_trans_resp <= '0;
+      end else if(sample_trans_rsp) begin
+        iommu_trans_resp <= iommu_to_dti_trans_resp_i;
       end
    end
 

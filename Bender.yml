@@ -76,7 +76,6 @@ sources:
   - rtl/ats_dti/ats_dti_axis_dn_fsm.sv
   - rtl/ats_dti/ats_dti_axis_up_fsm.sv
   - rtl/ats_dti/ats_dti_inv_scoreboard.sv
-  - rtl/ats_dti/ats_dti_trans_scoreboard.sv
   - rtl/ats_dti/ats_dti_condis_cmd_fsm.sv
   - rtl/ats_dti/ats_dti_trans_cmd_fsm.sv
   - rtl/ats_dti/ats_dti_inv_sync_cmd_fsm.sv
