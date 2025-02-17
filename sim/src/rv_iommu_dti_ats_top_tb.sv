@@ -92,70 +92,6 @@ module rv_iommu_dti_ats_top_tb;
   // Sync (unused in example)
   dti_ats_sync_req_s   sync_req;
   dti_ats_sync_ack_s   sync_ack;
-/*
-  // -------------------------------------------------
-  // AXI Stream Drivers/Receivers
-  // -------------------------------------------------
-  AXI_STREAM_BUS_DV #(
-    .DataWidth (DATA_WIDTH),
-    .IdWidth   (ID_WIDTH),
-    .DestWidth (DEST_WIDTH),
-    .UserWidth (USER_WIDTH)
-  ) master_dv (.clk_i(clk_i));
-
-  AXI_STREAM_BUS #(
-    .DataWidth (DATA_WIDTH),
-    .IdWidth   (ID_WIDTH),
-    .DestWidth (DEST_WIDTH),
-    .UserWidth (USER_WIDTH)
-  ) master();
-
-  typedef axi_stream_test::axi_stream_driver #(
-    .DataWidth ( DATA_WIDTH ),
-    .IdWidth   ( ID_WIDTH   ),
-    .DestWidth ( DEST_WIDTH ),
-    .UserWidth ( USER_WIDTH ),
-    .TestTime  ( 0.85*REFClockPeriod ),
-    .ApplTime  ( 0.15*REFClockPeriod )
-  ) master_drv_t;
-
-  master_drv_t master_drv = new(master_dv);
-
-  // Slave side
-  AXI_STREAM_BUS_DV #(
-    .DataWidth (DATA_WIDTH),
-    .IdWidth   (ID_WIDTH),
-    .DestWidth (DEST_WIDTH),
-    .UserWidth (USER_WIDTH)
-  ) slave_dv (.clk_i(clk_i));
-
-  AXI_STREAM_BUS #(
-    .DataWidth (DATA_WIDTH),
-    .IdWidth   (ID_WIDTH),
-    .DestWidth (DEST_WIDTH),
-    .UserWidth (USER_WIDTH)
-  ) slave();
-
-  typedef axi_stream_test::axi_stream_driver #(
-    .DataWidth ( DATA_WIDTH ),
-    .IdWidth   ( ID_WIDTH   ),
-    .DestWidth ( DEST_WIDTH ),
-    .UserWidth ( USER_WIDTH ),
-    .TestTime  ( 0.85*REFClockPeriod ),
-    .ApplTime  ( 0.15*REFClockPeriod )
-  ) slave_drv_t;
-
-  slave_drv_t slave_drv = new(slave_dv);
-
-  // Wiring macros
-  `AXI_STREAM_ASSIGN          ( master, master_dv    )
-  `AXI_STREAM_ASSIGN_TO_REQ   ( axis_mst_req, master )
-  `AXI_STREAM_ASSIGN_FROM_RSP ( master, axis_mst_rsp )
-
-  `AXI_STREAM_ASSIGN          ( slave_dv, slave      )
-  `AXI_STREAM_ASSIGN_FROM_REQ ( slave, axis_slv_req  )
-  `AXI_STREAM_ASSIGN_TO_RSP   ( axis_slv_rsp, slave  )
-*/
 
   // -------------------------------------------------
   // PCIe: ATS-DTI Verification IP
@@ -177,6 +113,9 @@ module rv_iommu_dti_ats_top_tb;
     .axis_slv_rsp ( axis_slv_rsp )
   );
 
+  // -------------------------------------------------
+  // IOMMU: ATS-DTI Verification IP
+  // -------------------------------------------------
   iommu_vip i_iommu_vip (
     .clk_i
   );
