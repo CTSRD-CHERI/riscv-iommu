@@ -9,22 +9,23 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 //
-// Date: 22/01/2025
+// Date: 17/02/2025
 //
 // Authors:
 // - Maicol Ciani <maicol.ciani@unibo.it>
 //
-// Description: Top level testbench for IOMMU's ATS DTI top module
+// Description: Fixture including the DuT, tasks and processes for testing.
 //
+
 `timescale 1ps/1ps
 
 `include "axi_stream/typedef.svh"
 `include "axi_stream/assign.svh"
 
-
-module rv_iommu_dti_ats_top_tb;
+module rv_iommu_dti_ats_top_fix;
 
   import rv_iommu_dti_ats_pkg::*;
+
   // -------------------------------------------------
   // Parameters
   // -------------------------------------------------
@@ -102,8 +103,8 @@ module rv_iommu_dti_ats_top_tb;
     .DEST_WIDTH     ( DEST_WIDTH     ),
     .USER_WIDTH     ( USER_WIDTH     ),
     .REFClockPeriod ( REFClockPeriod ),
-    .axis_req_t( axis_req_t     ),
-    .axis_rsp_t( axis_rsp_t     )
+    .axis_req_t( axis_req_t ),
+    .axis_rsp_t( axis_rsp_t )
   ) i_pcie_vip (
     .clk_i        ( clk_i        ),
     .rst_ni       ( rst_ni       ),
@@ -117,7 +118,7 @@ module rv_iommu_dti_ats_top_tb;
   // IOMMU: ATS-DTI Verification IP
   // -------------------------------------------------
   iommu_vip i_iommu_vip (
-    .clk_i
+    .clk_i( clk_i )
   );
 
   // -------------------------------------------------
@@ -173,7 +174,7 @@ module rv_iommu_dti_ats_top_tb;
   // -------------------------------------------------
   // Main Test Sequence
   // -------------------------------------------------
-  initial begin
+  task automatic dti_ats_standalone_test();
     // Wait for reset
     wait(rst_ni);
     @(posedge clk_i);
@@ -197,9 +198,7 @@ module rv_iommu_dti_ats_top_tb;
     fork
       begin : f1
         // Send N translation requests (PCIe->DTI)
-        i_pcie_vip.send_n_trans_requests(
-          NUM_TRANS_REQ, trans_req_pcie
-        );
+        i_pcie_vip.send_n_trans_requests(NUM_TRANS_REQ, trans_req_pcie);
       end
 
       begin : f2
@@ -233,17 +232,14 @@ module rv_iommu_dti_ats_top_tb;
         begin : sender
           // On the IOMMU side, drive the core->iommu invalidations
           i_iommu_vip.send_invals_process(
-             cq_inv_valid, cq_inv_req, cq_inv_ready, NUM_INV
+            cq_inv_valid, cq_inv_req, cq_inv_ready, NUM_INV
           );
-          // Send another batch
-          // or do_send_core_invalidations(...) again,
-          // but we included both phases inside send_invals_process, for example.
         end
 
         begin : receiver
           // The DUT forwards them onto the AXI 'slave' side, so we receive them there
           i_pcie_vip.do_receive_inv_requests(
-             2*NUM_INV, inv_req_array, 0
+            2*NUM_INV, inv_req_array, 0
           );
         end
       join
@@ -254,7 +250,6 @@ module rv_iommu_dti_ats_top_tb;
       repeat(140) @(posedge clk_i);
 
       // 4) Send invalidation completions (DTI->PCIe) out-of-order for entire set
-      //    using the array we stored them in:
       i_pcie_vip.send_invalidation_completions(
         2*NUM_INV,
         inv_req_array
@@ -269,7 +264,6 @@ module rv_iommu_dti_ats_top_tb;
 
     // Final wait
     repeat(100) @(posedge clk_i);
-    $stop;
-  end
+  endtask
 
 endmodule

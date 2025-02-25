@@ -95,4 +95,117 @@
 `define AXI_ASSIGN_TO_REQ_EXT(req_struct, axi_if)   `__AXI_TO_REQ_EXT(assign, req_struct, ., axi_if, _)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Macros for assigning req/resp AXI structs from flattened AXI ports.
+// Flat AXI ports are required by the Vivado IP Integrator. Vivado naming convention is followed.
+//
+// Usage Example:
+// `AXI_ASSIGN_FLAT_TO_MASTER("my_bus", my_req_struct, my_rsp_struct)
+`define AXI_ASSIGN_FLAT_TO_SLAVE(pat, req, rsp) \
+  assign s_axi_``pat``_awvalid  = req.aw_valid;  \
+  assign s_axi_``pat``_awid     = req.aw.id;     \
+  assign s_axi_``pat``_awaddr   = req.aw.addr;   \
+  assign s_axi_``pat``_awlen    = req.aw.len;    \
+  assign s_axi_``pat``_awsize   = req.aw.size;   \
+  assign s_axi_``pat``_awburst  = req.aw.burst;  \
+  assign s_axi_``pat``_awlock   = req.aw.lock;   \
+  assign s_axi_``pat``_awcache  = req.aw.cache;  \
+  assign s_axi_``pat``_awprot   = req.aw.prot;   \
+  assign s_axi_``pat``_awqos    = req.aw.qos;    \
+  assign s_axi_``pat``_awregion = req.aw.region; \
+  assign s_axi_``pat``_awuser   = req.aw.user;   \
+                                                 \
+  assign s_axi_``pat``_wvalid   = req.w_valid;   \
+  assign s_axi_``pat``_wdata    = req.w.data;    \
+  assign s_axi_``pat``_wstrb    = req.w.strb;    \
+  assign s_axi_``pat``_wlast    = req.w.last;    \
+  assign s_axi_``pat``_wuser    = req.w.user;    \
+                                                 \
+  assign s_axi_``pat``_bready   = req.b_ready;   \
+                                                 \
+  assign s_axi_``pat``_arvalid  = req.ar_valid;  \
+  assign s_axi_``pat``_arid     = req.ar.id;     \
+  assign s_axi_``pat``_araddr   = req.ar.addr;   \
+  assign s_axi_``pat``_arlen    = req.ar.len;    \
+  assign s_axi_``pat``_arsize   = req.ar.size;   \
+  assign s_axi_``pat``_arburst  = req.ar.burst;  \
+  assign s_axi_``pat``_arlock   = req.ar.lock;   \
+  assign s_axi_``pat``_arcache  = req.ar.cache;  \
+  assign s_axi_``pat``_arprot   = req.ar.prot;   \
+  assign s_axi_``pat``_arqos    = req.ar.qos;    \
+  assign s_axi_``pat``_arregion = req.ar.region; \
+  assign s_axi_``pat``_aruser   = req.ar.user;   \
+                                                 \
+  assign s_axi_``pat``_rready   = req.r_ready;   \
+                                                 \
+  assign rsp.aw_ready = s_axi_``pat``_awready;   \
+  assign rsp.ar_ready = s_axi_``pat``_arready;   \
+  assign rsp.w_ready  = s_axi_``pat``_wready;    \
+                                                 \
+  assign rsp.b_valid  = s_axi_``pat``_bvalid;    \
+  assign rsp.b.id     = s_axi_``pat``_bid;       \
+  assign rsp.b.resp   = s_axi_``pat``_bresp;     \
+  assign rsp.b.user   = s_axi_``pat``_buser;     \
+                                                 \
+  assign rsp.r_valid  = s_axi_``pat``_rvalid;    \
+  assign rsp.r.id     = s_axi_``pat``_rid;       \
+  assign rsp.r.data   = s_axi_``pat``_rdata;     \
+  assign rsp.r.resp   = s_axi_``pat``_rresp;     \
+  assign rsp.r.last   = s_axi_``pat``_rlast;     \
+  assign rsp.r.user   = s_axi_``pat``_ruser;
+
+`define AXI_ASSIGN_FLAT_TO_MASTER(pat, req, rsp)  \
+  assign req.aw_valid  = m_axi_``pat``_awvalid;  \
+  assign req.aw.id     = m_axi_``pat``_awid;     \
+  assign req.aw.addr   = m_axi_``pat``_awaddr;   \
+  assign req.aw.len    = m_axi_``pat``_awlen;    \
+  assign req.aw.size   = m_axi_``pat``_awsize;   \
+  assign req.aw.burst  = m_axi_``pat``_awburst;  \
+  assign req.aw.lock   = m_axi_``pat``_awlock;   \
+  assign req.aw.cache  = m_axi_``pat``_awcache;  \
+  assign req.aw.prot   = m_axi_``pat``_awprot;   \
+  assign req.aw.qos    = m_axi_``pat``_awqos;    \
+  assign req.aw.region = m_axi_``pat``_awregion; \
+  assign req.aw.user   = m_axi_``pat``_awuser;   \
+                                                 \
+  assign req.w_valid   = m_axi_``pat``_wvalid;   \
+  assign req.w.data    = m_axi_``pat``_wdata;    \
+  assign req.w.strb    = m_axi_``pat``_wstrb;    \
+  assign req.w.last    = m_axi_``pat``_wlast;    \
+  assign req.w.user    = m_axi_``pat``_wuser;    \
+                                                 \
+  assign req.b_ready   = m_axi_``pat``_bready;   \
+                                                 \
+  assign req.ar_valid  = m_axi_``pat``_arvalid;  \
+  assign req.ar.id     = m_axi_``pat``_arid;     \
+  assign req.ar.addr   = m_axi_``pat``_araddr;   \
+  assign req.ar.len    = m_axi_``pat``_arlen;    \
+  assign req.ar.size   = m_axi_``pat``_arsize;   \
+  assign req.ar.burst  = m_axi_``pat``_arburst;  \
+  assign req.ar.lock   = m_axi_``pat``_arlock;   \
+  assign req.ar.cache  = m_axi_``pat``_arcache;  \
+  assign req.ar.prot   = m_axi_``pat``_arprot;   \
+  assign req.ar.qos    = m_axi_``pat``_arqos;    \
+  assign req.ar.region = m_axi_``pat``_arregion; \
+  assign req.ar.user   = m_axi_``pat``_aruser;   \
+                                                 \
+  assign req.r_ready   = m_axi_``pat``_rready;   \
+                                                 \
+  assign m_axi_``pat``_awready = rsp.aw_ready;   \
+  assign m_axi_``pat``_arready = rsp.ar_ready;   \
+  assign m_axi_``pat``_wready  = rsp.w_ready;    \
+                                                 \
+  assign m_axi_``pat``_bvalid  = rsp.b_valid;    \
+  assign m_axi_``pat``_bid     = rsp.b.id;       \
+  assign m_axi_``pat``_bresp   = rsp.b.resp;     \
+  assign m_axi_``pat``_buser   = rsp.b.user;     \
+                                                 \
+  assign m_axi_``pat``_rvalid  = rsp.r_valid;    \
+  assign m_axi_``pat``_rid     = rsp.r.id;       \
+  assign m_axi_``pat``_rdata   = rsp.r.data;     \
+  assign m_axi_``pat``_rresp   = rsp.r.resp;     \
+  assign m_axi_``pat``_rlast   = rsp.r.last;     \
+  assign m_axi_``pat``_ruser   = rsp.r.user;
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 `endif
