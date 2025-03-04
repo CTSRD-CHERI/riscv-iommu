@@ -18,10 +18,11 @@
 //              Encompasses all address translation modules
 //              Supports Sv39x4 only
 
-import rv_iommu_reg_pkg::*;
 
-module rv_iommu_tl_wrap #(
-
+module rv_iommu_tl_wrap
+  import rv_iommu_reg_pkg::*;
+  import rv_iommu::*;
+#(
     /// RISC-V IOMMU configuration struct
     parameter rv_iommu_cfg::rv_iommu_cfg_t RVIOMMUCfg = rv_iommu_cfg::NullCfg,
 
@@ -56,6 +57,11 @@ module rv_iommu_tl_wrap #(
     input  logic                trans_req_valid_i,
     output logic                trans_req_ready_o,
 
+    // ATS Transaction controller request port
+    input  trans_req_data_t     ats_trans_req_data_i,
+    input  logic                ats_trans_req_valid_i,
+    output logic                ats_trans_req_ready_o,
+
     // Debug IF controller request port
     input  trans_req_data_t     debug_req_data_i,
     input  logic                debug_req_valid_i,
@@ -65,6 +71,11 @@ module rv_iommu_tl_wrap #(
     output trans_resp_data_t    trans_resp_data_o,
     output logic                trans_resp_valid_o,
     input  logic                trans_resp_ready_i,
+
+    // ATS Transaction controller response port
+    output trans_resp_data_t    ats_trans_resp_data_o,
+    output logic                ats_trans_resp_valid_o,
+    input  logic                ats_trans_resp_ready_i,
 
     // Debug IF controller response port
     output dbg_resp_t           debug_resp_data_o,
@@ -126,37 +137,29 @@ module rv_iommu_tl_wrap #(
     trans_req_data_t    req_data;
     logic               req_valid;
     logic               req_ready;
-    assign req_ready = (debug_resp_valid_o & debug_resp_ready_i) | 
-                        (trans_resp_valid_o & trans_resp_ready_i);
+    assign req_ready = (debug_resp_valid_o & debug_resp_ready_i) |
+                       (trans_resp_valid_o & trans_resp_ready_i) |
+                       (ats_trans_resp_valid_o & ats_trans_resp_ready_i) ;
 
-    generate
-    if (RVIOMMUCfg.InclDbg) begin : gen_req_arbiter
-        
-        // Priority is given to normal transactions
-        stream_arbiter #(
-            .DATA_T   (trans_req_data_t),
-            .N_INP    (2),
-            .ARBITER  ("prio")
-        ) i_req_arbiter (
-            .clk_i          (clk_i),
-            .rst_ni         (rst_ni),
+    // Priority is given to normal transactions
+    // We can keep the arbitrer in any case, as data_i and valid_i are '0
+    // when debug/ATS are unsupported
+    stream_arbiter #(
+        .DATA_T   (trans_req_data_t),
+        .N_INP    (3),
+        .ARBITER  ("prio")
+    ) i_req_arbiter (
+        .clk_i          (clk_i),
+        .rst_ni         (rst_ni),
 
-            .inp_data_i     ({debug_req_data_i,     trans_req_data_i}),
-            .inp_valid_i    ({debug_req_valid_i,    trans_req_valid_i}),
-            .inp_ready_o    ({debug_req_ready_o,    trans_req_ready_o}),
+        .inp_data_i     ({ats_trans_req_data_i,     debug_req_data_i,     trans_req_data_i }),
+        .inp_valid_i    ({ats_trans_req_valid_i,    debug_req_valid_i,    trans_req_valid_i}),
+        .inp_ready_o    ({ats_trans_req_ready_o,    debug_req_ready_o,    trans_req_ready_o}),
 
-            .oup_data_o     (arb_req_data),
-            .oup_valid_o    (arb_req_valid),
-            .oup_ready_i    (arb_req_ready)
-        );
-    end
-    else begin : no_req_arbiter
-        assign arb_req_data         = trans_req_data_i;
-        assign arb_req_valid        = trans_req_valid_i;
-        assign trans_req_ready_o    = arb_req_ready;
-        assign debug_req_ready_o    = 1'b0;
-    end
-    endgenerate
+        .oup_data_o     (arb_req_data),
+        .oup_valid_o    (arb_req_valid),
+        .oup_ready_i    (arb_req_ready)
+    );
 
     spill_register #(
         .T          (trans_req_data_t),
@@ -186,6 +189,13 @@ module rv_iommu_tl_wrap #(
     rv_iommu::ppn_t     iohgatp_ppn_q,  iohgatp_ppn_n;
     rv_iommu::ppn_t     iosatp_ppn_q,   iosatp_ppn_n;
     paddr_t             spaddr_q,       spaddr_n;
+    logic               r_q,            r_n;
+    logic               w_q,            w_n;
+    logic               x_q,            x_n;
+    logic               bypass_q,       bypass_n;
+    logic [2:0]         range_q,        range_n;
+
+
 
     //-------------
     // IOATC Wires
@@ -330,6 +340,25 @@ module rv_iommu_tl_wrap #(
     assign trans_resp_data_o.spaddr     = spaddr_q;
     assign trans_resp_data_o.is_mrif    = is_mrif_q;
     assign trans_resp_data_o.mrif_data  = mrif_q;
+    assign trans_resp_data_o.range      = range_q;
+    assign trans_resp_data_o.bypass     = bypass_q;
+    assign trans_resp_data_o.w          = w_q;
+    assign trans_resp_data_o.r          = r_q;
+    assign trans_resp_data_o.x          = x_q;
+
+    //----------------------
+    // ATS Translation response
+    //----------------------
+    assign ats_trans_resp_data_o.error      = error_q;
+    assign ats_trans_resp_data_o.ignore     = ignore_q;
+    assign ats_trans_resp_data_o.spaddr     = spaddr_q;
+    assign ats_trans_resp_data_o.is_mrif    = is_mrif_q;
+    assign ats_trans_resp_data_o.mrif_data  = mrif_q;
+    assign ats_trans_resp_data_o.range      = range_q;
+    assign ats_trans_resp_data_o.bypass     = bypass_q;
+    assign ats_trans_resp_data_o.w          = w_q;
+    assign ats_trans_resp_data_o.r          = r_q;
+    assign ats_trans_resp_data_o.x          = x_q;
 
     //------------------------------
     // Device Directory Table Cache
@@ -703,9 +732,10 @@ module rv_iommu_tl_wrap #(
     always_comb begin : translation_ctl_comb
 
         // Default values
-        debug_resp_valid_o  = 1'b0;
-        trans_resp_valid_o  = 1'b0;
-        fault_valid_o       = 1'b0;
+        debug_resp_valid_o     = 1'b0;
+        trans_resp_valid_o     = 1'b0;
+        ats_trans_resp_valid_o = 1'b0;
+        fault_valid_o          = 1'b0;
 
         hpm_events_o                = '0;
         hpm_events_o.filters.did    = req_data.did;
@@ -713,9 +743,9 @@ module rv_iommu_tl_wrap #(
         hpm_events_o.filters.pid    = req_data.pid;
         hpm_events_o.filters.gscid  = gscid_q;
         hpm_events_o.filters.pscid  = pscid_q;
-        
+
         state_n         = state_q;
-        
+
         dc_n            = dc_q;
         pc_n            = pc_q;
         en_1S_n         = en_1S_q;
@@ -742,11 +772,17 @@ module rv_iommu_tl_wrap #(
         msi_1S_data_n   = msi_1S_data_q;
         mrif_n          = mrif_q;
 
+        range_n         = range_q;
+        bypass_n        = bypass_q;
+        x_n             = x_q;
+        w_n             = w_q;
+        r_n             = r_q;
+
         unique case (state_q)
-            
+
             // Preliminary checks
             IDLE: begin
-                
+
                 if (req_valid) begin
 
                     // Clear error registers
@@ -1067,14 +1103,37 @@ module rv_iommu_tl_wrap #(
                 if (gpaddr_is_msi) begin
                     state_n = MSI;
                 end
-                
+
                 // (4) IOTLB hit
                 if (iotlb_lu_hit) begin   
                     state_n         = COMPLETE;
-                    is_superpage_n  = iotlb_lu_content.content_1S.is_2M | 
-                                      iotlb_lu_content.content_1S.is_1G | 
-                                      iotlb_lu_content.content_2S.is_2M | 
+                    is_superpage_n  = iotlb_lu_content.content_1S.is_2M |
+                                      iotlb_lu_content.content_1S.is_1G |
+                                      iotlb_lu_content.content_2S.is_2M |
                                       iotlb_lu_content.content_2S.is_1G;
+
+                    if(en_2S_q && en_2S_q) begin
+                       x_n = iotlb_lu_content.content_2S.x;
+                       w_n = iotlb_lu_content.content_2S.w;
+                       r_n = iotlb_lu_content.content_2S.r;
+                    end else if(en_2S_q) begin
+                       x_n = iotlb_lu_content.content_2S.x;
+                       w_n = iotlb_lu_content.content_2S.w;
+                       r_n = iotlb_lu_content.content_2S.r;
+                    end else if(en_1S_q) begin
+                       x_n = iotlb_lu_content.content_1S.x;
+                       w_n = iotlb_lu_content.content_1S.w;
+                       r_n = iotlb_lu_content.content_1S.r;
+                    end
+                    // Identity tranlsation: GVA=SPA
+                    bypass_n = dc_q.iohgatp.mode == ModeBare &&
+                               dc_q.fsc.mode == ModeBare;
+                    range_n  = iotlb_lu_content.content_1S.is_2M ?
+                               3'b011 :
+                               iotlb_lu_content.content_1S.is_1G ?
+                               3'b110 :
+                               3'b000 ;
+
                     /*
                         First-stage checks: A fault is generated if:
                         - (1): W transaction and pte.w=0;
@@ -1242,7 +1301,13 @@ module rv_iommu_tl_wrap #(
                         state_n = IDLE;
                     end
                 end
-
+                // ATS transltion
+                else if(req_data.ttype == rv_iommu::PCIE_ATS_TRANS_REQ) begin
+                    ats_trans_resp_valid_o  = 1'b1;
+                    if (ats_trans_resp_ready_i) begin
+                        state_n = IDLE;
+                    end
+                end
                 // Normal translation
                 else begin
                     trans_resp_valid_o  = 1'b1;
@@ -1287,6 +1352,11 @@ module rv_iommu_tl_wrap #(
             iova_is_msi_q   <= 1'b0;
             msi_1S_data_q   <= '0;
             mrif_q          <= '0;
+            range_q         <= '0;
+            bypass_q        <= '0;
+            x_q             <= '0;
+            w_q             <= '0;
+            r_q             <= '0;
         end
 
         else begin
@@ -1317,6 +1387,11 @@ module rv_iommu_tl_wrap #(
             iova_is_msi_q   <= iova_is_msi_n;
             msi_1S_data_q   <= msi_1S_data_n;
             mrif_q          <= mrif_n;
+            range_q         <= range_n;
+            bypass_q        <= bypass_n;
+            x_q             <= x_n;
+            w_q             <= w_n;
+            r_q             <= r_n;
         end
     end
 

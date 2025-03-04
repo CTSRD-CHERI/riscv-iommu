@@ -123,8 +123,8 @@ module pcie_ats_vip #(
 
   // Connect
   task automatic do_connect(
-    inout  dti_ats_condis_req_s  con_req,
-    inout  dti_ats_condis_ack_s  con_ack
+    ref  dti_ats_condis_req_s  con_req,
+    ref  dti_ats_condis_ack_s  con_ack
   );
  
     bit dummy_last;
@@ -144,8 +144,8 @@ module pcie_ats_vip #(
 
   // Disconnect
   task automatic do_disconnect(
-    inout  dti_ats_condis_req_s  dis_req,
-    inout  dti_ats_condis_ack_s  dis_ack
+    ref  dti_ats_condis_req_s  dis_req,
+    ref  dti_ats_condis_ack_s  dis_ack
   );
     bit dummy_last;
     dis_req = '0;
@@ -167,14 +167,14 @@ module pcie_ats_vip #(
     trans_req_pcie.s_msg_type   = DTI_ATS_TRANS_REQ;
     trans_req_pcie.trans_id_lsb = id;
     trans_req_pcie.protocol     = 1'b1;
-    trans_req_pcie.nW           = 1'b1; // example usage
+    trans_req_pcie.nW           = 1'b0; // request R and W
     trans_req_pcie.PnU          = 1'b0;
-    trans_req_pcie.InD          = 1'b0;
-    trans_req_pcie.IA           = 52'hCAD2E9A + id;
-    trans_req_pcie.sid          = 32'hDEADF00D;
+    trans_req_pcie.InD          = 1'b1; // request X
+    trans_req_pcie.IA           = 52'h1_0000_0000 + id*52'h1000;
+    trans_req_pcie.sid          = 32'h1;
 
-    $display("[DTI-ATS VIP] Sending Translation Request (PCIe->DTI) id=%0d => %p",
-             id, trans_req_pcie);
+    $display("[DTI-ATS VIP] Sending Translation Request (PCIe->DTI) id=%0d GVA=%x => %p",
+             id, trans_req_pcie.IA, trans_req_pcie);
     master_drv.send(trans_req_pcie, 1'b1);
   endtask
 
@@ -200,7 +200,7 @@ module pcie_ats_vip #(
 
     while (count_resp < num_expected) begin
       slave_drv.recv(dti_trans_resp, dummy_last);
-      $display("[DTI-ATS VIP] Received: %p", dti_trans_resp);
+      $display("[DTI-ATS VIP] Received: SPA=%h000 => %p", dti_trans_resp.OA, dti_trans_resp);
 
       if (dti_trans_resp.s_msg_type == DTI_ATS_TRANS_RESP) begin
         count_resp++;

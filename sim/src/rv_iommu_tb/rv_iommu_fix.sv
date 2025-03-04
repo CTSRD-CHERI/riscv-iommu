@@ -42,6 +42,7 @@ module rv_iommu_top_fix;
         InclPC              : 1'b1,
         InclAxiBC           : 1'b1,
         InclDbg             : 1'b1,
+        InclATS             : 1'b1,
         MSITrans            : rv_iommu_cfg::MSI_BT_MRIF,
         IGS                 : rv_iommu_cfg::BOTH,
         NumIntVec           : 32'd16,
@@ -51,7 +52,13 @@ module rv_iommu_top_fix;
         AxiDataWidth        : 32'd64,
         AxiIdWidth          : 32'd4,
         AxiProgIdWidth      : 32'd6,
-        AxiUserWidth        : 32'd1
+        AxiUserWidth        : 32'd1,
+        AxisDataWidth       : 32'd160,
+        AxisUserWidth       : 32'd1,
+        AxisKeepWidth       : 32'd20,
+        AxisStrbWidth       : 32'd20,
+        AxisIdWidth         : 32'd1,
+        AxisDestWidth       : 32'd1
    };
    // -------------------------------------------------
    // Parameters
@@ -68,6 +75,7 @@ module rv_iommu_top_fix;
    localparam type ssid_t    = logic[(rv_iommu::ProcIdWidth-1):0];
    localparam type ssidv_t   = logic;
 
+
    // AXI Stream parameters
    localparam int unsigned DATA_WIDTH = 160;
    localparam int unsigned KEEP_WIDTH = DATA_WIDTH/8;
@@ -78,8 +86,9 @@ module rv_iommu_top_fix;
 
    localparam int unsigned NUM_INV       = 16;
    localparam int unsigned NUM_REP       = 1;
-   localparam int unsigned NUM_TRANS_REQ = 32;
+   localparam int unsigned NUM_TRANS_REQ = 50;
 
+   typedef logic                  tvalid_t;
    typedef logic [DATA_WIDTH-1:0] tdata_t;
    typedef logic [ID_WIDTH-1:0]   tid_t;
    typedef logic [DEST_WIDTH-1:0] tdest_t;
@@ -109,6 +118,14 @@ module rv_iommu_top_fix;
 
    axi_prog_req_t  axi_iommu_prog_req;
    axi_prog_resp_t axi_iommu_prog_resp;
+
+   // For con/dis connect
+   dti_ats_condis_req_s  condis_con_req, condis_discon_req;
+   dti_ats_condis_ack_s  condis_con_ack, condis_discon_ack;
+
+   // For ATS translation request
+   dti_ats_trans_req_s trans_req_pcie;
+   dti_ats_trans_resp_s dti_trans_resp;
 
    // -------------------------------------------------
    // DUT IO Signals
@@ -310,6 +327,27 @@ module rv_iommu_top_fix;
    logic                s_axi_prog_rlast;
    user_t               s_axi_prog_ruser;
 
+   /*** AXI Stream Upstream Interface (Master) ***/
+   tvalid_t             m_axis_upstream_tvalid;
+   tdata_t              m_axis_upstream_tdata;
+   tstrb_t              m_axis_upstream_tstrb;
+   tuser_t              m_axis_upstream_tuser;
+   tkeep_t              m_axis_upstream_tkeep;
+   tid_t                m_axis_upstream_tid;
+   tdest_t              m_axis_upstream_tdest;
+   tlast_t              m_axis_upstream_tlast;
+   tready_t             m_axis_upstream_tready;
+
+   tvalid_t             s_axis_downstream_tvalid;
+   tdata_t              s_axis_downstream_tdata;
+   tstrb_t              s_axis_downstream_tstrb;
+   tuser_t              s_axis_downstream_tuser;
+   tkeep_t              s_axis_downstream_tkeep;
+   tid_t                s_axis_downstream_tid;
+   tdest_t              s_axis_downstream_tdest;
+   tlast_t              s_axis_downstream_tlast;
+   tready_t             s_axis_downstream_tready;
+
    /*** Interrupt wires ***/
    logic [RVIOMMUCfg.NumIntVec-1:0] wsi_wires_o;
 
@@ -322,6 +360,8 @@ module rv_iommu_top_fix;
    `AXI_ASSIGN_FLAT_TO_MASTER(comp, axi_iommu_comp_req, axi_iommu_comp_resp)
    `AXI_ASSIGN_FLAT_TO_MASTER(ds, axi_iommu_ds_req, axi_iommu_ds_resp)
    `AXI_ASSIGN_FLAT_TO_SLAVE(prog, axi_iommu_prog_req, axi_iommu_prog_resp)
+   `AXI_STREAM_ASSIGN_FLAT_TO_SLAVE(downstream, axis_mst_req, axis_mst_rsp )
+   `AXI_STREAM_ASSIGN_FLAT_TO_MASTER(upstream, axis_slv_req, axis_slv_rsp)
 
    assign s_axi_tr_awatop   = axi_iommu_tr_req.aw.atop;
    assign s_axi_prog_awatop = axi_iommu_prog_req.aw.atop;
@@ -418,5 +458,94 @@ module rv_iommu_top_fix;
    // -------------------------------------------------
    // Tasks and Functions
    // -------------------------------------------------
+  // -------------------------------------------------
+  // Main Test Sequence
+  // -------------------------------------------------
+  task automatic dti_translation_request();
+    // Wait for reset
+    wait(rst_ni);
+    @(posedge clk_i);
+
+    i_pcie_vip.reset();
+/*
+    // Clear signals
+    cq_inv_req       = '0;
+    cq_inv_valid     = 1'b0;
+    trans_req_ready  = 1'b0;
+    trans_resp_valid = 1'b0;
+*/
+    repeat(30) @(posedge clk_i);
+
+    // 1) Perform Connect using the DTI-ATS VIP
+    i_pcie_vip.do_connect(condis_con_req, condis_con_ack);
+    $display("[TB] ---- Connect Done ----");
+    repeat(20) @(posedge clk_i);    // 4) Disconnect
+
+    // 2) Concurrency for Translation Requests
+    fork
+      begin : f1
+        // Send N translation requests (PCIe->DTI)
+        i_pcie_vip.send_n_trans_requests(NUM_TRANS_REQ, trans_req_pcie);
+      end
+
+
+      begin : f2
+        // The final ATS translation responses come out on the slave AXI
+        i_pcie_vip.receive_dti_translation_responses(
+          NUM_TRANS_REQ, dti_trans_resp
+        );
+      end
+    join
+
+    repeat(20) @(posedge clk_i);    // 4) Disconnect
+    i_pcie_vip.do_disconnect(condis_discon_req, condis_discon_ack);
+    $display("[TB] ---- Disconnect Done ----");
+
+/*
+    $display("[TB] ---- Translation Flow Done ----");
+    repeat(20) @(posedge clk_i);
+
+    // 3) Now do the invalidation sequence in 2 * NUM_INV
+    for(int rep=0; rep<NUM_REP; rep++) begin
+      repeat(30) @(posedge clk_i);
+
+      // Parallel sending & receiving
+      fork
+        begin : sender
+          // On the IOMMU side, drive the core->iommu invalidations
+          i_iommu_vip.send_invals_process(
+            cq_inv_valid, cq_inv_req, cq_inv_ready, NUM_INV
+          );
+        end
+
+        begin : receiver
+          // The DUT forwards them onto the AXI 'slave' side, so we receive them there
+          i_pcie_vip.do_receive_inv_requests(
+            2*NUM_INV, inv_req_array, 0
+          );
+        end
+      join
+
+      $display("[TB] ---- Invalidation Flow Done for iteration %0d ----", rep);
+
+      // Possibly wait for the ack process to flush
+      repeat(140) @(posedge clk_i);
+
+      // 4) Send invalidation completions (DTI->PCIe) out-of-order for entire set
+      i_pcie_vip.send_invalidation_completions(
+        2*NUM_INV,
+        inv_req_array
+      );
+
+      repeat(10) @(posedge clk_i);
+    end
+
+    // 4) Disconnect
+    i_pcie_vip.do_disconnect(condis_discon_req, condis_discon_ack);
+    $display("[TB] ---- Disconnect Done ----");
+
+    // Final wait
+    repeat(100) @(posedge clk_i);*/
+  endtask
 
 endmodule

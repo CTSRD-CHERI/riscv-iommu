@@ -18,7 +18,9 @@
 //              Instantiates the RISC-V IOMMU module using flat signals.
 
 `include "axi/assign.svh"
+`include "axi_stream/typedef.svh"
 `include "axi-iommu/typedef.svh"
+`include "axi-iommu/assign.svh"
 
 module rv_iommu_wrap #(
     parameter rv_iommu_cfg::rv_iommu_cfg_t RVIOMMUCfg = rv_iommu_cfg::rv_iommu_cfg_t'{
@@ -33,6 +35,7 @@ module rv_iommu_wrap #(
         InclPC              : 1'b1,
         InclAxiBC           : 1'b1,
         InclDbg             : 1'b1,
+        InclATS             : 1'b1,
         MSITrans            : rv_iommu_cfg::MSI_BT_MRIF,
         IGS                 : rv_iommu_cfg::BOTH,
         NumIntVec           : 32'd16,
@@ -42,7 +45,13 @@ module rv_iommu_wrap #(
         AxiDataWidth        : 32'd64,
         AxiIdWidth          : 32'd4,
         AxiProgIdWidth      : 32'd6,
-        AxiUserWidth        : 32'd1
+        AxiUserWidth        : 32'd1,
+        AxisDataWidth       : 32'd160,
+        AxisUserWidth       : 32'd1,
+        AxisKeepWidth       : 32'd20,
+        AxisStrbWidth       : 32'd20,
+        AxisIdWidth         : 32'd1,
+        AxisDestWidth       : 32'd1
     },
 
     parameter type addr_t = logic[(RVIOMMUCfg.AxiAddrWidth-1):0],
@@ -53,7 +62,17 @@ module rv_iommu_wrap #(
     parameter type user_t = logic[(RVIOMMUCfg.AxiUserWidth-1):0],
     parameter type sid_t = logic [(rv_iommu::DevIdWidth-1):0],
     parameter type ssid_t = logic [(rv_iommu::ProcIdWidth-1):0],
-    parameter type ssidv_t = logic
+    parameter type ssidv_t = logic,
+
+    parameter type tdata_t  = logic [(RVIOMMUCfg.AxisDataWidth-1):0],
+    parameter type tid_t    = logic [(RVIOMMUCfg.AxisIdWidth-1  ):0],
+    parameter type tdest_t  = logic [(RVIOMMUCfg.AxisDestWidth-1):0],
+    parameter type tuser_t  = logic [(RVIOMMUCfg.AxisUserWidth-1):0],
+    parameter type tstrb_t  = logic [(RVIOMMUCfg.AxisStrbWidth-1):0],
+    parameter type tkeep_t  = logic [(RVIOMMUCfg.AxisKeepWidth-1):0],
+    parameter type tvalid_t = logic,
+    parameter type tready_t = logic,
+    parameter type tlast_t  = logic
 ) (
     input logic clk_i,
     input logic rst_ni,
@@ -288,11 +307,33 @@ module rv_iommu_wrap #(
     output logic                s_axi_prog_rlast,
     output user_t               s_axi_prog_ruser,
 
+    /*** AXI Stream Upstream Interface (Master) ***/
+    output tvalid_t             m_axis_upstream_tvalid,
+    output tdata_t              m_axis_upstream_tdata,
+    output tstrb_t              m_axis_upstream_tstrb,
+    output tuser_t              m_axis_upstream_tuser,
+    output tkeep_t              m_axis_upstream_tkeep,
+    output tid_t                m_axis_upstream_tid,
+    output tdest_t              m_axis_upstream_tdest,
+    output tlast_t              m_axis_upstream_tlast,
+    input  tready_t             m_axis_upstream_tready,
+
+    /*** AXI Stream Downstream Interface (Slave) ***/
+    input  tvalid_t             s_axis_downstream_tvalid,
+    input  tdata_t              s_axis_downstream_tdata,
+    input  tstrb_t              s_axis_downstream_tstrb,
+    input  tuser_t              s_axis_downstream_tuser,
+    input  tkeep_t              s_axis_downstream_tkeep,
+    input  tid_t                s_axis_downstream_tid,
+    input  tdest_t              s_axis_downstream_tdest,
+    input  tlast_t              s_axis_downstream_tlast,
+    output tready_t             s_axis_downstream_tready,
+
     /*** Interrupt wires ***/
     output logic [RVIOMMUCfg.NumIntVec-1:0] wsi_wires_o
 );
 
-    `AXI_TYPEDEF_EXT_ALL(axi_tr, addr_t, id_t, data_t, strb_t, user_t, 
+    `AXI_TYPEDEF_EXT_ALL(axi_tr, addr_t, id_t, data_t, strb_t, user_t,
                             sid_t, ssidv_t, ssid_t)
     axi_tr_req_t axi_iommu_tr_req;
     axi_tr_resp_t axi_iommu_tr_resp;
@@ -309,11 +350,20 @@ module rv_iommu_wrap #(
     axi_prog_req_t axi_iommu_prog_req;
     axi_prog_resp_t axi_iommu_prog_resp;
 
+    // AXI Stream Strucutre
+    `AXI_STREAM_TYPEDEF_ALL(axis, tdata_t, tstrb_t, tkeep_t, tid_t, tdest_t, tuser_t)
+    axis_req_t ats_axis_upstream_req,  ats_axis_downstream_req;
+    axis_rsp_t ats_axis_upstream_resp, ats_axis_downstream_resp;
+
     // Connect flat module wires to interface structs
     `AXI_ASSIGN_SLAVE_TO_FLAT(tr, axi_iommu_tr_req, axi_iommu_tr_resp)
     `AXI_ASSIGN_MASTER_TO_FLAT(comp, axi_iommu_comp_req, axi_iommu_comp_resp)
     `AXI_ASSIGN_MASTER_TO_FLAT(ds, axi_iommu_ds_req, axi_iommu_ds_resp)
     `AXI_ASSIGN_SLAVE_TO_FLAT(prog, axi_iommu_prog_req, axi_iommu_prog_resp)
+
+    // Connect ATS AXI Stream structure
+    `AXI_STREAM_ASSIGN_MASTER_TO_FLAT(upstream, ats_axis_upstream_req, ats_axis_upstream_resp)
+    `AXI_STREAM_ASSIGN_SLAVE_TO_FLAT(downstream, ats_axis_downstream_req, ats_axis_downstream_resp)
 
     assign axi_iommu_tr_req.aw.atop = s_axi_tr_awatop;
     assign axi_iommu_prog_req.aw.atop = s_axi_prog_awatop;
@@ -364,19 +414,26 @@ module rv_iommu_wrap #(
         .axi_prog_ar_chan_t (axi_prog_ar_chan_t),
         .axi_prog_r_chan_t  (axi_prog_r_chan_t),
         .axi_prog_req_t     (axi_prog_req_t),
-        .axi_prog_resp_t    (axi_prog_resp_t)
+        .axi_prog_resp_t    (axi_prog_resp_t),
+
+        .axis_req_t         (axis_req_t),
+        .axis_rsp_t         (axis_rsp_t)
     ) i_riscv_iommu (
-        .clk_i              (clk_i),
-        .rst_ni             (rst_ni),
-        .tr_req_i           (axi_iommu_tr_req),
-        .tr_resp_o          (axi_iommu_tr_resp),
-        .comp_resp_i        (axi_iommu_comp_resp),
-        .comp_req_o         (axi_iommu_comp_req),
-        .ds_resp_i          (axi_iommu_ds_resp),
-        .ds_req_o           (axi_iommu_ds_req),
-        .prog_req_i         (axi_iommu_prog_req),
-        .prog_resp_o        (axi_iommu_prog_resp),
-        .wsi_wires_o        (wsi_wires_o)
+        .clk_i                 (clk_i),
+        .rst_ni                (rst_ni),
+        .tr_req_i              (axi_iommu_tr_req),
+        .tr_resp_o             (axi_iommu_tr_resp),
+        .comp_resp_i           (axi_iommu_comp_resp),
+        .comp_req_o            (axi_iommu_comp_req),
+        .ds_resp_i             (axi_iommu_ds_resp),
+        .ds_req_o              (axi_iommu_ds_req),
+        .prog_req_i            (axi_iommu_prog_req),
+        .prog_resp_o           (axi_iommu_prog_resp),
+        .ats_upstream_req_o    (ats_axis_upstream_req),
+        .ats_upstream_resp_i   (ats_axis_upstream_resp),
+        .ats_downstream_req_i  (ats_axis_downstream_req),
+        .ats_downstream_resp_o (ats_axis_downstream_resp),
+        .wsi_wires_o           (wsi_wires_o)
     );
     
 endmodule

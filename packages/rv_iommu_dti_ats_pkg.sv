@@ -186,27 +186,6 @@ package rv_iommu_dti_ats_pkg;
   //////////////////////////////
 
   typedef struct packed {
-     addr_t       iova;
-     device_id_t  did;
-     logic        pid_valid;
-     process_id_t pid;
-     ttype_t      ttype;
-     logic        priv;
-     logic        is_debug;
-     logic        nW;       // Write permission
-     logic        x;        // Execute permission
-  } rv_iommu_trans_req_s;
-
-  typedef struct packed {
-     // aggiungere flag per indicare error type
-     logic            error;
-     logic            ignore;
-     paddr_t          spaddr;
-     logic            is_mrif;
-     mrifc_content_t  mrif_data;
-  } rv_iommu_trans_resp_s;
-
-  typedef struct packed {
      logic [51:0] IA;
      logic [11:0] reserved_2;
      logic [19:0] ssid;

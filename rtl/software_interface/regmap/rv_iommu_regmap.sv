@@ -436,8 +436,8 @@ module rv_iommu_regmap #(
 
 
   //   F[ats]: 25:25
-  assign reg2hw_o.capabilities.ats.q = 1'h0;
-  assign capabilities_ats_qs = 1'h0;
+  assign reg2hw_o.capabilities.ats.q = 1'h1;
+  assign capabilities_ats_qs = 1'h1;
 
 
   //   F[t2gpa]: 26:26

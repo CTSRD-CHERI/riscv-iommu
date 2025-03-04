@@ -67,6 +67,8 @@ package rv_iommu_cfg;
         bit          InclAxiBC;
         /// Include debug register interface
         bit          InclDbg;
+        /// Include Address Translation Services support
+        bit          InclATS;
         /// MSI translation upport
         msi_trans_t  MSITrans;
         /// Interrupt Generation Support
@@ -89,6 +91,18 @@ package rv_iommu_cfg;
         int unsigned AxiProgIdWidth;
         /// AXI user width
         int unsigned AxiUserWidth;
+        ///
+        int unsigned AxisDataWidth;
+        ///
+        int unsigned AxisDestWidth;
+        ///
+        int unsigned AxisUserWidth;
+        ///
+        int unsigned AxisStrbWidth;
+        ///
+        int unsigned AxisKeepWidth;
+        ///
+        int unsigned AxisIdWidth;
     } rv_iommu_cfg_t;
 
     /*************************************************************************/
@@ -106,6 +120,7 @@ package rv_iommu_cfg;
         InclPC              : 1'b0,
         InclAxiBC           : 1'b0,
         InclDbg             : 1'b0,
+        InclATS             : 1'b0,
         MSITrans            : MSI_DISABLED,
         IGS                 : WSI_ONLY,
         NumIntVec           : 32'd0,
@@ -115,7 +130,15 @@ package rv_iommu_cfg;
         AxiDataWidth        : 32'd0,
         AxiIdWidth          : 32'd0,
         AxiProgIdWidth      : 32'd0,
-        AxiUserWidth        : 32'd0
+        AxiUserWidth        : 32'd0,
+        AxisDataWidth       : 32'd0,
+        AxisUserWidth       : 32'd0,
+        AxisKeepWidth       : 32'd0,
+        AxisStrbWidth       : 32'd0,
+        AxisIdWidth         : 32'd0,
+        AxisDestWidth       : 32'd0
+
+
     };
 
 endpackage

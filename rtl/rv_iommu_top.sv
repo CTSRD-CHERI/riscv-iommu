@@ -18,7 +18,9 @@
 
 `include "register_interface/typedef.svh"
 
-module rv_iommu_top #(
+module rv_iommu_top
+  import rv_iommu_dti_ats_pkg::*;
+#(
     /// RISC-V IOMMU configuration struct
     parameter rv_iommu_cfg::rv_iommu_cfg_t RVIOMMUCfg = rv_iommu_cfg::NullCfg,
 
@@ -41,7 +43,7 @@ module rv_iommu_top #(
 
     parameter type axi_comp_req_t       = logic,
     parameter type axi_comp_resp_t      = logic,
-    
+
     /*** Data Structures Interface ***/
     parameter type axi_ds_aw_chan_t     = logic,
     parameter type axi_ds_w_chan_t      = logic,
@@ -51,7 +53,7 @@ module rv_iommu_top #(
 
     parameter type axi_ds_req_t         = logic,
     parameter type axi_ds_resp_t        = logic,
-    
+
     /*** Programming Interface ***/
     parameter type axi_prog_aw_chan_t   = logic,
     parameter type axi_prog_w_chan_t    = logic,
@@ -60,7 +62,10 @@ module rv_iommu_top #(
     parameter type axi_prog_r_chan_t    = logic,
 
     parameter type axi_prog_req_t       = logic,
-    parameter type axi_prog_resp_t      = logic
+    parameter type axi_prog_resp_t      = logic,
+
+    parameter type axis_req_t           = logic,
+    parameter type axis_rsp_t           = logic
 ) (
     input  logic clk_i,
     input  logic rst_ni,
@@ -80,6 +85,14 @@ module rv_iommu_top #(
     // Programming Interface (Slave)
     input  axi_prog_req_t  prog_req_i,
     output axi_prog_resp_t prog_resp_o,
+
+    // DTI Upstream Interface (Master)
+    output axis_req_t      ats_upstream_req_o,
+    input  axis_rsp_t      ats_upstream_resp_i,
+
+    // DTI Downstream Interface (Slave)
+    input  axis_req_t      ats_downstream_req_i,
+    output axis_rsp_t      ats_downstream_resp_o,
 
     output logic [(RVIOMMUCfg.NumIntVec-1):0] wsi_wires_o
 );
@@ -112,6 +125,11 @@ module rv_iommu_top #(
         paddr_t                     spaddr;
         logic                       is_mrif;
         rv_iommu::mrifc_content_t   mrif_data;
+        logic [2:0]                 range;
+        logic                       bypass;
+        logic                       x;
+        logic                       w;
+        logic                       r;
     } trans_resp_data_t;
 
     // Debug response structure
@@ -143,6 +161,14 @@ module rv_iommu_top #(
     trans_resp_data_t   trans_resp_data;
     logic               trans_resp_valid;
     logic               trans_resp_ready;
+
+    trans_req_data_t    ats_trans_req_data;
+    logic               ats_trans_req_valid;
+    logic               ats_trans_req_ready;
+
+    trans_resp_data_t   ats_trans_resp_data;
+    logic               ats_trans_resp_valid;
+    logic               ats_trans_resp_ready;
 
     trans_req_data_t    debug_req_data;
     logic               debug_req_valid;
@@ -231,7 +257,7 @@ module rv_iommu_top #(
 
         .ds_req_o               (ds_req_o),
         .ds_resp_i              (ds_resp_i),
-        
+
         .ddtw_req_i             (ddtw_axi_req),
         .ddtw_resp_o            (ddtw_axi_resp),
         .pdtw_req_i             (pdtw_axi_req),
@@ -335,6 +361,10 @@ module rv_iommu_top #(
             .trans_req_valid_i      (trans_req_valid),
             .trans_req_ready_o      (trans_req_ready),
 
+            .ats_trans_req_data_i   (ats_trans_req_data),
+            .ats_trans_req_valid_i  (ats_trans_req_valid),
+            .ats_trans_req_ready_o  (ats_trans_req_ready),
+
             .debug_req_data_i       (debug_req_data),
             .debug_req_valid_i      (debug_req_valid),
             .debug_req_ready_o      (debug_req_ready),
@@ -342,6 +372,10 @@ module rv_iommu_top #(
             .trans_resp_data_o      (trans_resp_data),
             .trans_resp_valid_o     (trans_resp_valid),
             .trans_resp_ready_i     (trans_resp_ready),
+
+            .ats_trans_resp_data_o  (ats_trans_resp_data),
+            .ats_trans_resp_valid_o (ats_trans_resp_valid),
+            .ats_trans_resp_ready_i (ats_trans_resp_ready),
 
             .debug_resp_data_o      (debug_resp_data),
             .debug_resp_valid_o     (debug_resp_valid),
@@ -393,6 +427,10 @@ module rv_iommu_top #(
             .trans_req_valid_i      (trans_req_valid),
             .trans_req_ready_o      (trans_req_ready),
 
+            .ats_trans_req_data_i   (ats_trans_req_data),
+            .ats_trans_req_valid_i  (ats_trans_req_valid),
+            .ats_trans_req_ready_o  (ats_trans_req_ready),
+
             .debug_req_data_i       (debug_req_data),
             .debug_req_valid_i      (debug_req_valid),
             .debug_req_ready_o      (debug_req_ready),
@@ -400,6 +438,10 @@ module rv_iommu_top #(
             .trans_resp_data_o      (trans_resp_data),
             .trans_resp_valid_o     (trans_resp_valid),
             .trans_resp_ready_i     (trans_resp_ready),
+
+            .ats_trans_resp_data_o  (ats_trans_resp_data),
+            .ats_trans_resp_valid_o (ats_trans_resp_valid),
+            .ats_trans_resp_ready_i (ats_trans_resp_ready),
 
             .debug_resp_data_o      (debug_resp_data),
             .debug_resp_valid_o     (debug_resp_valid),
@@ -489,5 +531,49 @@ module rv_iommu_top #(
 
         .wsi_wires_o       (wsi_wires_o)
     );
-    
+
+    // -------------------------------------------------
+    // Address Translation Services - ATS Support
+    // -------------------------------------------------
+    if(RVIOMMUCfg.InclATS) begin : gen_ats_support
+       dti_ats_top #(
+         .axis_req_t ( axis_req_t ),
+         .axis_rsp_t ( axis_rsp_t ),
+         .trans_req_data_t  ( trans_req_data_t  ),
+         .trans_resp_data_t ( trans_resp_data_t )
+       ) i_ats_support (
+         .clk_i  ( clk_i  ),
+         .rst_ni ( rst_ni ),
+         // AXIS Upstream interface
+         .axis_req_up_o ( ats_upstream_req_o  ),
+         .axis_rsp_up_i ( ats_upstream_resp_i ),
+         // AXIS Downstream interface
+         .axis_req_dn_i ( ats_downstream_req_i  ),
+         .axis_rsp_dn_o ( ats_downstream_resp_o ),
+         // Invalidation interface
+         .iommu_to_dti_inv_req_i     ( '0                   ),
+         .iommu_to_dti_inv_valid_i   ( '0                   ),
+         .iommu_to_dti_inv_ready_o   (                      ),
+         // DTI translation request interface
+         .dti_to_iommu_trans_req_o   ( ats_trans_req_data   ),
+         .dti_to_iommu_trans_valid_o ( ats_trans_req_valid  ),
+         .dti_to_iommu_trans_ready_i ( ats_trans_req_ready  ),
+         // DTI translation response interface
+         .iommu_to_dti_trans_resp_i  ( ats_trans_resp_data  ),
+         .iommu_to_dti_trans_valid_i ( ats_trans_resp_valid ),
+         .iommu_to_dti_trans_ready_o ( ats_trans_resp_ready ),
+         // Timeout error
+         .timeout_o (  )
+       );
+
+    end else begin
+       assign ats_upstream_req_o    = '0;
+       assign ats_downstream_resp_o = '0;
+
+       assign ats_trans_req_data    = '0;
+       assign ats_trans_req_valid   = '0;
+       assign ats_trans_resp_ready  = '0;
+    end
+
+
 endmodule

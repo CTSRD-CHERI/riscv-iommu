@@ -19,7 +19,9 @@ module ats_dti_trans_cmd_fsm
   import rv_iommu_dti_ats_pkg::*;
   import rv_iommu::*;
 #(
-  parameter int MAX_TOKENS = 16
+  parameter int MAX_TOKENS = 16,
+  parameter type trans_req_data_t  = logic,
+  parameter type trans_resp_data_t = logic
 ) (
   input logic          clk_i,
   input logic          rst_ni,
@@ -35,14 +37,14 @@ module ats_dti_trans_cmd_fsm
   output logic         dn_msg_ready_o,
 
   // Translation request towards IOMMU
-  output rv_iommu_trans_req_s  dti_to_iommu_trans_req_o,
-  output logic                 dti_to_iommu_trans_valid_o,
-  input  logic                 dti_to_iommu_trans_ready_i,
+  output trans_req_data_t  dti_to_iommu_trans_req_o,
+  output logic             dti_to_iommu_trans_valid_o,
+  input  logic             dti_to_iommu_trans_ready_i,
 
   // Translation response from IOMMU
-  input  rv_iommu_trans_resp_s iommu_to_dti_trans_resp_i,
-  input  logic                 iommu_to_dti_trans_valid_i,
-  output logic                 iommu_to_dti_trans_ready_o,
+  input  trans_resp_data_t iommu_to_dti_trans_resp_i,
+  input  logic             iommu_to_dti_trans_valid_i,
+  output logic             iommu_to_dti_trans_ready_o,
 
   // Maximum outstandin requests
   input logic [11:0]   gnt_trans_tok_i,
@@ -77,7 +79,7 @@ module ats_dti_trans_cmd_fsm
    dti_ats_trans_req_s   trans_req;
    dti_ats_trans_req_s   fifo_trans_req;
 
-   rv_iommu_trans_resp_s iommu_trans_resp;
+   trans_resp_data_t     iommu_trans_resp;
 
    dti_ats_trans_resp_s  dti_trans_compl;
    dti_ats_trans_fault_s dti_trans_fault;
@@ -150,10 +152,10 @@ module ats_dti_trans_cmd_fsm
                  dti_to_iommu_trans_req_o.pid_valid = trans_req.ssv;
                  dti_to_iommu_trans_req_o.pid       = trans_req.ssv ? trans_req.ssid : '0;
                  dti_to_iommu_trans_req_o.ttype     = PCIE_ATS_TRANS_REQ;
-                 dti_to_iommu_trans_req_o.priv      = trans_req.PnU;
+                 dti_to_iommu_trans_req_o.priv      = trans_req.ssv ? trans_req.PnU : '0;
                  dti_to_iommu_trans_req_o.is_debug  = 1'b0;
-                 dti_to_iommu_trans_req_o.nW        = trans_req.nW;
-                 dti_to_iommu_trans_req_o.x         = trans_req.InD;
+                 //dti_to_iommu_trans_req_o.nW        = trans_req.nW;
+                 //dti_to_iommu_trans_req_o.x         = trans_req.InD;
                  dti_to_iommu_trans_valid_o = 1'b1;
                  if(dti_to_iommu_trans_valid_o &&
                     dti_to_iommu_trans_ready_i) begin
@@ -176,7 +178,7 @@ module ats_dti_trans_cmd_fsm
               dti_trans_fault.s_msg_type   = DTI_ATS_TRANS_FAULT;
               dti_trans_fault.trans_id_lsb = trans_req.trans_id_lsb;
               dti_trans_fault.trans_id_msb = trans_req.trans_id_msb;
-              dti_trans_fault.fault_type   = '0; // ?
+              dti_trans_fault.fault_type   = '0; // TODO
               up_msg_o = dti_payload_s'(dti_trans_fault);
               up_msg_valid_o = 1'b1;
               if(up_msg_ready_i) begin
@@ -188,16 +190,16 @@ module ats_dti_trans_cmd_fsm
               dti_trans_compl              = '0;
               dti_trans_compl.s_msg_type   = DTI_ATS_TRANS_RESP;
               dti_trans_compl.trans_id_lsb = trans_req.trans_id_lsb;
-              dti_trans_compl.trans_id_msb = trans_req.trans_id_msb;/*
-              dti_trans_compl.untrans      = ; // ?
-              dti_trans_compl.CLX_IO       = ; // ?
-              dti_trans_compl.bypass       = ; // ?
-              dti_trans_compl.allow_r      = ; // dep on iommu_trans_resp
-              dti_trans_compl.allow_w      = ; // dep on iommu_trans_resp
-              dti_trans_compl.allow_x      = ; // dep on iommu_trans_resp
-              dti_trans_compl.te           = ; // ?
-              dti_trans_compl.trans_rng    = ; // ?
-              dti_trans_compl.AMA          = ; // ?*/
+              dti_trans_compl.trans_id_msb = trans_req.trans_id_msb;
+              dti_trans_compl.untrans      = '0; // ask Cristiano
+              dti_trans_compl.CLX_IO       = '0; // TO CHECK
+              dti_trans_compl.bypass       = iommu_trans_resp.bypass; // to be taken from iommu state (both bare -> bypass)
+              dti_trans_compl.allow_r      = iommu_trans_resp.r;
+              dti_trans_compl.allow_w      = iommu_trans_resp.w;
+              dti_trans_compl.allow_x      = iommu_trans_resp.x;
+              dti_trans_compl.te           = '0; // ask Cristiano
+              dti_trans_compl.trans_rng    = iommu_trans_resp.range; // not 0 if it is a superpage
+              dti_trans_compl.AMA          = '0 ; // Appl specific, default '0
               dti_trans_compl.OA           = {8'b0, iommu_trans_resp.spaddr[55:12]};
               up_msg_o = dti_payload_s'(dti_trans_compl);
               up_msg_valid_o = 1'b1;

@@ -773,7 +773,7 @@ module rv_iommu_vip #(
        entry_base = ROOT_DDT_BASE + i*ROOT_DDT_SIZE;
 
        // root_ddt[i].tc = test_dc_tc_table[BASIC];
-       mem_write(entry_base + OFF_TC, 32'b1);
+       mem_write(entry_base + OFF_TC, 32'b11);
 
        // root_ddt[i].iohgatp = ((s2pt_root >> 12) | IOHGATP_MODE_BARE);
        //  and also add  (GSCID_ARRAY[i] << GSCID_OFF)

@@ -206,6 +206,49 @@
   assign m_axi_``pat``_rresp   = rsp.r.resp;     \
   assign m_axi_``pat``_rlast   = rsp.r.last;     \
   assign m_axi_``pat``_ruser   = rsp.r.user;
-////////////////////////////////////////////////////////////////////////////////////////////////////
+
+`define AXI_STREAM_ASSIGN_MASTER_TO_FLAT(pat, req, rsp) \
+  assign m_axis_``pat``_tvalid = req.tvalid;            \
+  assign m_axis_``pat``_tdata  = req.t.data;            \
+  assign m_axis_``pat``_tstrb  = req.t.strb;            \
+  assign m_axis_``pat``_tuser  = req.t.user;            \
+  assign m_axis_``pat``_tkeep  = req.t.keep;            \
+  assign m_axis_``pat``_tid    = req.t.id;              \
+  assign m_axis_``pat``_tdest  = req.t.dest;            \
+  assign m_axis_``pat``_tlast  = req.t.last;            \
+  assign rsp.tready = m_axis_``pat``_tready;
+
+`define AXI_STREAM_ASSIGN_SLAVE_TO_FLAT(pat, req, rsp) \
+  assign req.tvalid = s_axis_``pat``_tvalid;           \
+  assign req.t.data = s_axis_``pat``_tdata;            \
+  assign req.t.strb = s_axis_``pat``_tstrb;            \
+  assign req.t.user = s_axis_``pat``_tuser;            \
+  assign req.t.keep = s_axis_``pat``_tkeep;            \
+  assign req.t.id   = s_axis_``pat``_tid;              \
+  assign req.t.dest = s_axis_``pat``_tdest;            \
+  assign req.t.last = s_axis_``pat``_tlast;            \
+  assign s_axis_``pat``_tready = rsp.tready;
+
+`define AXI_STREAM_ASSIGN_FLAT_TO_SLAVE(pat, req, rsp) \
+  assign s_axis_``pat``_tvalid = req.tvalid;           \
+  assign s_axis_``pat``_tdata  = req.t.data;           \
+  assign s_axis_``pat``_tstrb  = req.t.strb;           \
+  assign s_axis_``pat``_tuser  = req.t.user;           \
+  assign s_axis_``pat``_tkeep  = req.t.keep;           \
+  assign s_axis_``pat``_tid    = req.t.id;             \
+  assign s_axis_``pat``_tdest  = req.t.dest;           \
+  assign s_axis_``pat``_tlast  = req.t.last;           \
+  assign rsp.tready = s_axis_``pat``_tready;
+
+`define AXI_STREAM_ASSIGN_FLAT_TO_MASTER(pat, req, rsp) \
+  assign req.tvalid = m_axis_``pat``_tvalid;            \
+  assign req.t.data = m_axis_``pat``_tdata;             \
+  assign req.t.strb = m_axis_``pat``_tstrb;             \
+  assign req.t.user = m_axis_``pat``_tuser;             \
+  assign req.t.keep = m_axis_``pat``_tkeep;             \
+  assign req.t.id   = m_axis_``pat``_tid;               \
+  assign req.t.dest = m_axis_``pat``_tdest ;            \
+  assign req.t.last = m_axis_``pat``_tlast;             \
+  assign m_axis_``pat``_tready = rsp.tready ;
 
 `endif

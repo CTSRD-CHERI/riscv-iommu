@@ -22,7 +22,9 @@ module dti_ats_top
   parameter      MAX_INV_TOKENS   = 16,
   parameter      MAX_TRANS_TOKENS = 64,
   parameter type axis_req_t = logic,
-  parameter type axis_rsp_t = logic
+  parameter type axis_rsp_t = logic,
+  parameter type trans_req_data_t  = logic,
+  parameter type trans_resp_data_t = logic
 ) (
   input  logic      clk_i,
   input  logic      rst_ni,
@@ -41,16 +43,16 @@ module dti_ats_top
   output logic                 iommu_to_dti_inv_ready_o,
 
   // Translation request towards IOMMU's trans logic
-  output rv_iommu_trans_req_s  dti_to_iommu_trans_req_o,
-  output logic                 dti_to_iommu_trans_valid_o,
-  input  logic                 dti_to_iommu_trans_ready_i,
+  output trans_req_data_t  dti_to_iommu_trans_req_o,
+  output logic             dti_to_iommu_trans_valid_o,
+  input  logic             dti_to_iommu_trans_ready_i,
 
   // Translation response from IOMMU
-  input  rv_iommu_trans_resp_s iommu_to_dti_trans_resp_i,
-  input  logic                 iommu_to_dti_trans_valid_i,
-  output logic                 iommu_to_dti_trans_ready_o,
+  input  trans_resp_data_t iommu_to_dti_trans_resp_i,
+  input  logic             iommu_to_dti_trans_valid_i,
+  output logic             iommu_to_dti_trans_ready_o,
 
-  output logic                timeout_o
+  output logic             timeout_o
 
 );
 
@@ -232,7 +234,9 @@ module dti_ats_top
    // Translation Message Handler
    // ---------------------------------------------------------------
    ats_dti_trans_cmd_fsm #(
-     .MAX_TOKENS     ( MAX_TRANS_TOKENS )
+     .MAX_TOKENS     ( MAX_TRANS_TOKENS ),
+     .trans_req_data_t  ( trans_req_data_t  ),
+     .trans_resp_data_t ( trans_resp_data_t )
    ) i_trans_fsm (
      .clk_i          ( clk_i            ),
      .rst_ni         ( rst_ni           ),
