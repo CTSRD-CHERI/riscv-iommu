@@ -53,7 +53,8 @@ module ats_dti_inv_scoreboard #(
   //-------------------------------------------------------
   output logic         full_o,   // scoreboard can't accept more pushes
   output logic         empty_o,  // scoreboard is empty
-  output logic [$clog2(DEPTH+1)-1:0] usage_o
+  output logic [$clog2(DEPTH+1)-1:0] usage_o,
+  output logic                       inv_inflight_o
 );
 
   // ------------------------------------------------------
@@ -337,5 +338,8 @@ module ats_dti_inv_scoreboard #(
 
   // "Empty" if usage == 0
   assign empty_o = (usage_q == 0);
+
+  // At least one request in flight
+  assign inv_inflight_o = (usage_q != 0);
 
 endmodule

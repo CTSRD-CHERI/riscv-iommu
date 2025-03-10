@@ -51,7 +51,8 @@ module rv_iommu_wrap #(
         AxisKeepWidth       : 32'd20,
         AxisStrbWidth       : 32'd20,
         AxisIdWidth         : 32'd1,
-        AxisDestWidth       : 32'd1
+        AxisDestWidth       : 32'd1,
+        Freq                : 32'd10
     },
 
     parameter type addr_t = logic[(RVIOMMUCfg.AxiAddrWidth-1):0],

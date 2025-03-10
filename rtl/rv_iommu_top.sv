@@ -19,6 +19,7 @@
 `include "register_interface/typedef.svh"
 
 module rv_iommu_top
+  import rv_iommu::*;
   import rv_iommu_dti_ats_pkg::*;
 #(
     /// RISC-V IOMMU configuration struct
@@ -216,6 +217,10 @@ module rv_iommu_top
     logic           mrif_fault_ready;
 
     logic in_flight;
+
+    cq_atsinval_t atsinval;
+    logic atsinval_to, atsinval_inflight;
+    logic atsinval_valid, atsinval_ready;
 
     //-----------------------
     // Programming Interface
@@ -529,6 +534,13 @@ module rv_iommu_top
 
         .in_flight_i       (in_flight),
 
+        .atsinval_o       (atsinval),
+        .atsinval_valid_o (atsinval_valid),
+        .atsinval_ready_i (atsinval_ready),
+
+        .atsinval_to_i       (atsinval_to),
+        .atsinval_inflight_i (atsinval_inflight),
+
         .wsi_wires_o       (wsi_wires_o)
     );
 
@@ -540,7 +552,8 @@ module rv_iommu_top
          .axis_req_t ( axis_req_t ),
          .axis_rsp_t ( axis_rsp_t ),
          .trans_req_data_t  ( trans_req_data_t  ),
-         .trans_resp_data_t ( trans_resp_data_t )
+         .trans_resp_data_t ( trans_resp_data_t ),
+         .FREQUENCY (RVIOMMUCfg.Freq)
        ) i_ats_support (
          .clk_i  ( clk_i  ),
          .rst_ni ( rst_ni ),
@@ -551,9 +564,9 @@ module rv_iommu_top
          .axis_req_dn_i ( ats_downstream_req_i  ),
          .axis_rsp_dn_o ( ats_downstream_resp_o ),
          // Invalidation interface
-         .iommu_to_dti_inv_req_i     ( '0                   ),
-         .iommu_to_dti_inv_valid_i   ( '0                   ),
-         .iommu_to_dti_inv_ready_o   (                      ),
+         .iommu_to_dti_inv_req_i     ( atsinval             ),
+         .iommu_to_dti_inv_valid_i   ( atsinval_valid       ),
+         .iommu_to_dti_inv_ready_o   ( atsinval_ready       ),
          // DTI translation request interface
          .dti_to_iommu_trans_req_o   ( ats_trans_req_data   ),
          .dti_to_iommu_trans_valid_o ( ats_trans_req_valid  ),
@@ -563,9 +576,9 @@ module rv_iommu_top
          .iommu_to_dti_trans_valid_i ( ats_trans_resp_valid ),
          .iommu_to_dti_trans_ready_o ( ats_trans_resp_ready ),
          // Timeout error
-         .timeout_o (  )
+         .inv_to_o                   ( atsinval_to          ),
+         .inv_inflight_o             ( atsinval_inflight    )
        );
-
     end else begin
        assign ats_upstream_req_o    = '0;
        assign ats_downstream_resp_o = '0;
@@ -573,6 +586,11 @@ module rv_iommu_top
        assign ats_trans_req_data    = '0;
        assign ats_trans_req_valid   = '0;
        assign ats_trans_resp_ready  = '0;
+
+       assign atsinval_ready        = '0;
+
+       assign atsinval_to           = '0;
+       assign atsinval_inflight     = '0;
     end
 
 

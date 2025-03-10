@@ -79,6 +79,13 @@ module rv_iommu_cq_handler #(
     output rv_iommu::xdtc_inval_t       iodirinval_o,
     // IOTLB Invalidation
     output rv_iommu::iotlb_inval_t      iotinval_o,
+    // ATS Invalidation
+    output rv_iommu::cq_atsinval_t      atsinval_o,
+    output logic                        atsinval_valid_o,
+    input  logic                        atsinval_ready_i,
+
+    input  logic                        atsinval_to_i,
+    input  logic                        atsinval_inflight_i,
 
     // Memory Bus
     input  axi_resp_t   mem_resp_i,
@@ -142,16 +149,17 @@ module rv_iommu_cq_handler #(
     rv_iommu::cq_iotinval_t cmd_iotinval;
     rv_iommu::cq_iofence_t  cmd_iofence;
     rv_iommu::cq_iodir_t    cmd_iodirinval;
+    rv_iommu::cq_iodir_t    cmd_atsinval;
 
     assign cq_entry         = rv_iommu::cq_entry_t'(cmd_q);
     assign cmd_iotinval     = rv_iommu::cq_iotinval_t'(cmd_q);
     assign cmd_iofence      = rv_iommu::cq_iofence_t'(cmd_q);
     assign cmd_iodirinval   = rv_iommu::cq_iodir_t'(cmd_q);
-
+    assign cmd_atsinval     = rv_iommu::cq_atsinval_t'(cmd_q);
 
     //# Combinational Logic
     always_comb begin : cq_handler_comb
-        
+
         // Default values
         // AXI parameters
         // AW
@@ -190,6 +198,8 @@ module rv_iommu_cq_handler #(
 
         iotinval_o              = '0;
         iodirinval_o            = '0;
+        atsinval_o              = '0;
+        atsinval_valid_o        = '0;
 
         cq_head_o               = cq_head_i;
         cq_head_wen_o           = 1'b1;
@@ -347,6 +357,18 @@ module rv_iommu_cq_handler #(
                                 cqcsr_fence_o       = 1'b1;
                                 cqcsr_fence_wen_o   = 1'b1;
                             end
+
+                            // Wait for ATS invalidations to complete before proceeding
+                            if(atsinval_inflight_i) begin
+                               //An Invalidation timed out
+                               if(atsinval_to_i) begin
+                                  cqcsr_to_o = 1'b1;
+                                  cqcsr_to_wen_o = 1'b1;
+                               end else begin
+                                  state_n = DECODE;
+                               end
+                            end
+
                         end
                     end
 
@@ -390,12 +412,20 @@ module rv_iommu_cq_handler #(
                     end
 
                     /*
-                        ATS.INVAL and ATS.PRGR commands not supported
+                        ATS.INVAL is now supported, but ATS.PRGR still is not supported
                     */
                     rv_iommu::ATS: begin
-                        cqcsr_ill_o     = 1'b1;
-                        cqcsr_ill_wen_o = 1'b1;
-                        state_n         = ERROR;
+                        // It's an ATS Invalidation command
+                        if(cmd_atsinval.func3 == 3'b000) begin
+                           atsinval_o = cmd_atsinval;
+                           atsinval_valid_o = 1'b1;
+                           if(~atsinval_ready_i)
+                              state_n = DECODE;
+                        else // It is a PRGR command, not supported yet
+                           cqcsr_ill_o     = 1'b1;
+                           cqcsr_ill_wen_o = 1'b1;
+                           state_n         = ERROR;
+                        end
                     end
 
                     default: begin

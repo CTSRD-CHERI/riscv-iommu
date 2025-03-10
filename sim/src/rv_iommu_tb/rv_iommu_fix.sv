@@ -458,94 +458,40 @@ module rv_iommu_top_fix;
    // -------------------------------------------------
    // Tasks and Functions
    // -------------------------------------------------
-  // -------------------------------------------------
-  // Main Test Sequence
-  // -------------------------------------------------
-  task automatic dti_translation_request();
-    // Wait for reset
-    wait(rst_ni);
-    @(posedge clk_i);
 
-    i_pcie_vip.reset();
-/*
-    // Clear signals
-    cq_inv_req       = '0;
-    cq_inv_valid     = 1'b0;
-    trans_req_ready  = 1'b0;
-    trans_resp_valid = 1'b0;
-*/
-    repeat(30) @(posedge clk_i);
+   // -------------------------------------------------
+   // DTI Translation Request Test
+   // -------------------------------------------------
+   task automatic dti_translation_request();
+     // Wait for reset
+     wait(rst_ni);
+     @(posedge clk_i);
 
-    // 1) Perform Connect using the DTI-ATS VIP
-    i_pcie_vip.do_connect(condis_con_req, condis_con_ack);
-    $display("[TB] ---- Connect Done ----");
-    repeat(20) @(posedge clk_i);    // 4) Disconnect
+     i_pcie_vip.reset();
+     repeat(30) @(posedge clk_i);
 
-    // 2) Concurrency for Translation Requests
-    fork
-      begin : f1
-        // Send N translation requests (PCIe->DTI)
-        i_pcie_vip.send_n_trans_requests(NUM_TRANS_REQ, trans_req_pcie);
-      end
+     // 1) Perform Connect using the DTI-ATS VIP
+     i_pcie_vip.do_connect(condis_con_req, condis_con_ack);
+     $display("[TB] ---- Connect Done ----");
+     repeat(20) @(posedge clk_i);
 
+     fork
+       begin : f1
+         // Send N translation requests (PCIe->DTI)
+         i_pcie_vip.send_n_trans_requests(NUM_TRANS_REQ, trans_req_pcie);
+       end
 
-      begin : f2
-        // The final ATS translation responses come out on the slave AXI
-        i_pcie_vip.receive_dti_translation_responses(
-          NUM_TRANS_REQ, dti_trans_resp
-        );
-      end
-    join
+       begin : f2
+         // The final ATS translation responses come out on the slave AXI
+         i_pcie_vip.receive_dti_translation_responses(
+           NUM_TRANS_REQ, dti_trans_resp
+         );
+       end
+     join
 
-    repeat(20) @(posedge clk_i);    // 4) Disconnect
-    i_pcie_vip.do_disconnect(condis_discon_req, condis_discon_ack);
-    $display("[TB] ---- Disconnect Done ----");
-
-/*
-    $display("[TB] ---- Translation Flow Done ----");
-    repeat(20) @(posedge clk_i);
-
-    // 3) Now do the invalidation sequence in 2 * NUM_INV
-    for(int rep=0; rep<NUM_REP; rep++) begin
-      repeat(30) @(posedge clk_i);
-
-      // Parallel sending & receiving
-      fork
-        begin : sender
-          // On the IOMMU side, drive the core->iommu invalidations
-          i_iommu_vip.send_invals_process(
-            cq_inv_valid, cq_inv_req, cq_inv_ready, NUM_INV
-          );
-        end
-
-        begin : receiver
-          // The DUT forwards them onto the AXI 'slave' side, so we receive them there
-          i_pcie_vip.do_receive_inv_requests(
-            2*NUM_INV, inv_req_array, 0
-          );
-        end
-      join
-
-      $display("[TB] ---- Invalidation Flow Done for iteration %0d ----", rep);
-
-      // Possibly wait for the ack process to flush
-      repeat(140) @(posedge clk_i);
-
-      // 4) Send invalidation completions (DTI->PCIe) out-of-order for entire set
-      i_pcie_vip.send_invalidation_completions(
-        2*NUM_INV,
-        inv_req_array
-      );
-
-      repeat(10) @(posedge clk_i);
-    end
-
-    // 4) Disconnect
-    i_pcie_vip.do_disconnect(condis_discon_req, condis_discon_ack);
-    $display("[TB] ---- Disconnect Done ----");
-
-    // Final wait
-    repeat(100) @(posedge clk_i);*/
-  endtask
+     repeat(20) @(posedge clk_i);    // 4) Disconnect
+     i_pcie_vip.do_disconnect(condis_discon_req, condis_discon_ack);
+     $display("[TB] ---- Disconnect Done ----");
+   endtask
 
 endmodule

@@ -36,12 +36,14 @@ module rv_iommu_top_tb;
     repeat(20)
       @(posedge fixture_i.clk_i);
     fixture_i.i_rv_iommu_vip.iommu_ddt_init_hw();
+    repeat(20)
+      @(posedge fixture_i.clk_i);
+    fixture_i.i_rv_iommu_vip.iommu_cq_init();
+    repeat(20)
+      @(posedge fixture_i.clk_i);
     $display("[MAIN TB] End Configuration");
     repeat(20)
       @(posedge fixture_i.clk_i);
-    //fixture_i.i_rv_iommu_vip.axi_single_write_select("tr",64'h1_0000_0000,64'hDEAD_BEEF);
-    //repeat(20)
-    //  @(posedge fixture_i.clk_i);
 
     fixture_i.dti_translation_request();
     repeat(20)

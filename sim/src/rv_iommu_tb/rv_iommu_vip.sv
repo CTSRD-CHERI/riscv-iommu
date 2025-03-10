@@ -180,6 +180,36 @@ module rv_iommu_vip #(
    localparam int MemDepth = 1024*1024;
    localparam int MemAddWidth = $clog2(MemDepth);
 
+   localparam logic [31:0] COMMAND_QUEUE_BASE = 32'h00EF_0000;
+
+   // Command queue mapping
+   // Offsets as defined by the structure layout
+   localparam logic [31:0] IOMMU_CAP_ADDR    = 32'h00;
+   localparam logic [31:0] IOMMU_FCTL_ADDR   = 32'h08;
+   localparam logic [31:0] IOMMU_DDTP_ADDR   = 32'h10;
+   localparam logic [31:0] IOMMU_CQB_ADDR    = 32'h18;
+   localparam logic [31:0] IOMMU_CQH_ADDR    = 32'h20;
+   localparam logic [31:0] IOMMU_CQT_ADDR    = 32'h24;
+   localparam logic [31:0] IOMMU_FQB_ADDR    = 32'h28;
+   localparam logic [31:0] IOMMU_FQH_ADDR    = 32'h30;
+   localparam logic [31:0] IOMMU_FQT_ADDR    = 32'h34;
+   localparam logic [31:0] IOMMU_PQB_ADDR    = 32'h38;
+   localparam logic [31:0] IOMMU_PQH_ADDR    = 32'h40;
+   localparam logic [31:0] IOMMU_PQT_ADDR    = 32'h44;
+   localparam logic [31:0] IOMMU_CQCSR_ADDR  = 32'h48;
+   localparam logic [31:0] IOMMU_FQCSR_ADDR  = 32'h4C;
+   localparam logic [31:0] IOMMU_PQCSR_ADDR  = 32'h50;
+   localparam logic [31:0] IOMMU_IPSR_ADDR   = 32'h54;
+
+   // Constant definitions for CQ
+   localparam logic [63:0] CQB_PPN_MASK   = 64'h3FFFFFFFFFFC00;
+   localparam logic [63:0] CQ_LOG2SZ_1    = 64'h1; // For example, log2(queue size)=1
+   localparam logic [31:0] CQCSR_CQEN     = 32'h1;
+   localparam logic [31:0] CQCSR_CIE      = 32'h2;
+   localparam logic [31:0] CQCSR_CQON     = 32'h0001_0000;
+   // For addressing the command queue buffer (32-bit mask on the base address)
+   localparam logic [31:0] CQ_PPN_MASK32  = 32'hFFFF_F000;
+
    typedef axi_test::axi_driver #(
      .AW( ADDR_WIDTH ),
      .DW( DATA_WIDTH ),
@@ -718,8 +748,6 @@ module rv_iommu_vip #(
      base_ptr = s2pt_addr(0,0);
      pte_val  = PTE_V | ((base_ptr >> 2) & PTE_PPN_MSK);
      mem_write( s2pt_root_addr(4), pte_val );
-//     mem_write( s2pt_root_addr(4), pte_val );
-//     mem_write( s2pt_root_addr(64), pte_val );
 
      // s2pt_root[2047] = PTE_V | ((&s2pt[1][0] >>2) & PTE_PPN_MSK)
      mem_write( s2pt_root_addr(2047), pte_val );
@@ -780,10 +808,6 @@ module rv_iommu_vip #(
        val64 = {IOHGATP_MODE_SV39X4, 16'b0, S2PT_ROOT_BASE};
        mem_write(entry_base + OFF_IOHGATP, val64);
 
-       // root_ddt[i].ta = (PSCID_ARRAY[i] << PSCID_OFF);
-//       val64 = (PSCID_ARRAY) << PSCID_OFF;
-//       mem_write(entry_base + OFF_TA, val64);
-
        // root_ddt[i].fsc = ((s1pt >> 12) | IOSATP_MODE_BARE);
        val64 = {IOSATP_MODE_SV39, 16'b0, S1PT_BASE};
        mem_write(entry_base + OFF_FSC, val64);
@@ -797,6 +821,73 @@ module rv_iommu_vip #(
      axi_single_write_select("prog",64'h10,ddtp[31:0]);
      axi_single_write_select("prog",64'h14,ddtp[63:32]);
 
+   endtask // iommu_ddt_init_hw
+
+   //----------------------------------------------------------------
+   // Task: iommu_cq_init
+   // Configures the command-queue registers:
+   //  - Programs the cqb register with the physical address and size of the CQ.
+   //  - Copies the head pointer (cqh) into the tail pointer (cqt).
+   //  - Enables the CQ by writing to the cqcsr register.
+   //  - Polls until the CQON bit is set in cqcsr.
+   //----------------------------------------------------------------
+   task automatic iommu_cq_init();
+     // Local variables for 64-bit and 32-bit data
+     logic [63:0] cqb_val;
+     logic [31:0] cqh_val;
+     logic [31:0] reg_data;
+     // Compute the value for the command-queue base register:
+     //   cqb_val = ( (COMMAND_QUEUE_BASE >> 2) & CQB_PPN_MASK ) | CQ_LOG2SZ_1;
+     cqb_val = (((COMMAND_QUEUE_BASE >> 2) & CQB_PPN_MASK) | CQ_LOG2SZ_1);
+
+     // Program the 64-bit cqb register using two 32-bit writes.
+     axi_single_write_select("prog", IOMMU_CQB_ADDR, cqb_val[31:0]);
+     axi_single_write_select("prog", IOMMU_CQB_ADDR + 4, cqb_val[63:32]);
+
+     // Read the current command-queue head (cqh) using the programming interface.
+     axi_single_read_select("prog", IOMMU_CQH_ADDR, cqh_val);
+     // Set cqt (tail) equal to cqh.
+     axi_single_write_select("prog", IOMMU_CQT_ADDR, cqh_val);
+
+     // Enable the command queue by writing (CQCSR_CQEN | CQCSR_CIE) to cqcsr.
+     axi_single_write_select("prog", IOMMU_CQCSR_ADDR, (CQCSR_CQEN | CQCSR_CIE));
+
+     // Poll until the CQON bit is set in the cqcsr register.
+     do begin
+       axi_single_read_select("prog", IOMMU_CQCSR_ADDR, reg_data);
+       @(posedge clk_i);
+     end while ((reg_data & CQCSR_CQON) == 0);
+   endtask
+
+   //----------------------------------------------------------------
+   // Task: rv_iommu_write_command_in_queue
+   // Writes a two-word (64-bit ×2) command into the command queue buffer.
+   // It uses the current tail pointer (cqt) to compute the target address in the
+   // command queue memory and then writes the two words. Finally, it increments cqt.
+   //----------------------------------------------------------------
+   task automatic rv_iommu_write_command_in_queue(
+     input logic [63:0] new_cmd0,
+     input logic [63:0] new_cmd1
+   );
+     logic [31:0] cqt;
+     logic [31:0] cq_entry_addr;
+     // Split 64-bit words into two 32-bit halves
+     logic [31:0] lower_new_cmd0, upper_new_cmd0;
+     logic [31:0] lower_new_cmd1, upper_new_cmd1;
+     // Read the current command-queue tail index (cqt)
+     axi_single_read_select("prog", IOMMU_CQT_ADDR, cqt);
+
+     // Compute the address of the next CQ entry:
+     //   Each entry is 16 bytes (2×64-bit words) so we shift cqt by 4 bits.
+     cq_entry_addr = (COMMAND_QUEUE_BASE & CQ_PPN_MASK32) | (cqt << 4);
+
+     // Write the first 64-bit word at the computed command queue address.
+     mem_write(cq_entry_addr,      new_cmd0);
+     mem_write(cq_entry_addr + 8,  new_cmd1);
+
+     // Increment the command-queue tail pointer and program it back.
+     cqt = cqt + 1;
+     axi_single_write_select("prog", IOMMU_CQT_ADDR, cqt);
    endtask
 
 endmodule

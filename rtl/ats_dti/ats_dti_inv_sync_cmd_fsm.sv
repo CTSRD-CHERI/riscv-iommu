@@ -45,7 +45,11 @@ module ats_dti_inv_sync_cmd_fsm
   input logic                 iommu_to_dti_inv_valid_i,
   output logic                iommu_to_dti_inv_ready_o,
 
+  output logic                dti_to_iommu_inv_inflight_o,
+
   input logic [3:0]           granted_inv_tok_i,
+
+
 
   // T bit support (defined during condis)
   input logic                 t_bit_i,
@@ -206,7 +210,8 @@ module ats_dti_inv_sync_cmd_fsm
      // Scoreboard status
      .full_o            ( sb_full           ),
      .empty_o           ( sb_empty          ),
-     .usage_o           (                   )
+     .usage_o           (                   ),
+     .inv_inflight_o    ( dti_to_iommu_inv_inflight_o )
    );
 
    ////////////////////////////////

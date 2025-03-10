@@ -91,18 +91,20 @@ package rv_iommu_cfg;
         int unsigned AxiProgIdWidth;
         /// AXI user width
         int unsigned AxiUserWidth;
-        ///
+        /// AXIS Data Width
         int unsigned AxisDataWidth;
-        ///
+        /// AXIS Dest Width
         int unsigned AxisDestWidth;
-        ///
+        /// AXIS User Width
         int unsigned AxisUserWidth;
-        ///
+        /// AXIS Strb Width
         int unsigned AxisStrbWidth;
-        ///
+        /// AXIS Keep Width
         int unsigned AxisKeepWidth;
-        ///
+        /// AXIS ID Width
         int unsigned AxisIdWidth;
+        /// Frequency, for Invalidation timeouts
+        int unsigned Freq;
     } rv_iommu_cfg_t;
 
     /*************************************************************************/
@@ -136,9 +138,8 @@ package rv_iommu_cfg;
         AxisKeepWidth       : 32'd0,
         AxisStrbWidth       : 32'd0,
         AxisIdWidth         : 32'd0,
-        AxisDestWidth       : 32'd0
-
-
+        AxisDestWidth       : 32'd0,
+        Freq                : 32'd0
     };
 
 endpackage

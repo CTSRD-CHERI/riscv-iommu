@@ -378,6 +378,25 @@ package rv_iommu;
         logic [6:0]     opcode;
     } cq_iodir_t;
 
+    // ATS INVAL
+
+    typedef struct packed {
+       logic [31:0] unused;
+       logic [51:0] untrans_addr;
+       logic        s;
+       logic [9:0]  reserved_2;
+       logic        g;
+       logic [7:0]  dseg;
+       logic [15:0] rid;
+       logic [5:0]  reserved_1;
+       logic        dsv;
+       logic        pv;
+       logic [19:0] pid;
+       logic [1:0]  reserved_0;
+       logic [2:0]  func3;
+       logic [6:0]  opcode;
+    } cq_atsinval_t;
+
     //----------------------
     // Fault CAUSE Encoding
     //----------------------

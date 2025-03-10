@@ -18,12 +18,13 @@
 module dti_ats_top
   import rv_iommu_dti_ats_pkg::*;
 #(
-  parameter      DATA_WIDTH       = 160,
-  parameter      MAX_INV_TOKENS   = 16,
-  parameter      MAX_TRANS_TOKENS = 64,
+  parameter DATA_WIDTH = 160,
+  parameter MAX_INV_TOKENS = 16,
+  parameter MAX_TRANS_TOKENS = 64,
+  parameter FREQUENCY = 10,
   parameter type axis_req_t = logic,
   parameter type axis_rsp_t = logic,
-  parameter type trans_req_data_t  = logic,
+  parameter type trans_req_data_t = logic,
   parameter type trans_resp_data_t = logic
 ) (
   input  logic      clk_i,
@@ -47,13 +48,15 @@ module dti_ats_top
   output logic             dti_to_iommu_trans_valid_o,
   input  logic             dti_to_iommu_trans_ready_i,
 
+
   // Translation response from IOMMU
   input  trans_resp_data_t iommu_to_dti_trans_resp_i,
   input  logic             iommu_to_dti_trans_valid_i,
   output logic             iommu_to_dti_trans_ready_o,
 
-  output logic             timeout_o
-
+  // Timeout and inflight invalidations
+  output logic             inv_to_o,
+  output logic             inv_inflight_o
 );
 
   /////////////////////////////
@@ -93,7 +96,7 @@ module dti_ats_top
    logic [3:0]  granted_inv_tok;
    logic [11:0] granted_trans_tok;
 
-   logic [31:0] frequency = 32'd10;
+   logic [31:0] frequency = FREQUENCY;
 
    logic        t_bit;
 
@@ -223,9 +226,12 @@ module dti_ats_top
      .iommu_to_dti_inv_req_i   ( iommu_to_dti_inv_req_i   ),
      .iommu_to_dti_inv_valid_i ( iommu_to_dti_inv_valid_i ),
      .iommu_to_dti_inv_ready_o ( iommu_to_dti_inv_ready_o ),
+
+     .dti_to_iommu_inv_inflight_o ( inv_inflight_o        ),
+
      // Timeout and status signals
      .granted_inv_tok_i        ( granted_inv_tok ),
-     .timeout_o                ( timeout_o       ),
+     .timeout_o                ( inv_to_o        ),
      .t_bit_i                  ( t_bit           ),
      .link_status_i            ( link_status     )
    );

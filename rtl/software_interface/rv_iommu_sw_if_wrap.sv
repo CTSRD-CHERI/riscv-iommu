@@ -96,6 +96,15 @@ import rv_iommu_reg_pkg::*;
     // The IOMMU is currently processing a translation
     input  logic        in_flight_i,
 
+
+    // ATS Invalidation
+    output rv_iommu::cq_atsinval_t atsinval_o,
+    output logic                   atsinval_valid_o,
+    input  logic                   atsinval_ready_i,
+
+    input  logic                   atsinval_to_i,
+    input  logic                   atsinval_inflight_i,
+
     // Interrupt wires
     output logic [(RVIOMMUCfg.NumIntVec-1):0] wsi_wires_o
 );
@@ -185,6 +194,13 @@ import rv_iommu_reg_pkg::*;
 
         .iodirinval_o        (iodirinval_o),
         .iotinval_o          (iotinval_o),
+
+        .atsinval_o          (atsinval_o),
+        .atsinval_valid_o    (atsinval_valid_o),
+        .atsinval_ready_i    (atsinval_ready_i),
+
+        .atsinval_to_i       (atsinval_to_i),
+        .atsinval_inflight_i (atsinval_inflight_i),
 
         .mem_req_o           (cq_axi_req_o),
         .mem_resp_i          (cq_axi_resp_i)
