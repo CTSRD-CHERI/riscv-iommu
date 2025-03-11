@@ -213,7 +213,7 @@ module pcie_ats_vip #(
   // Receive a single invalidation request from the DUT on the slave interface.
   // Store or queue it up for later completion.
   task automatic do_recv_one_inv_req(
-    inout  dti_ats_inv_req_s inv_req,
+    ref    dti_ats_inv_req_s inv_req,
     input  int j
   );
     bit dummy_last;
@@ -229,7 +229,7 @@ module pcie_ats_vip #(
   // Receive 'count' invalidation requests in a loop
   task automatic do_receive_inv_requests(
     input  int count,
-    inout  dti_ats_inv_req_s inv_req_array[],
+    ref    dti_ats_inv_req_s inv_req_array[$],
     input  int bias
   );
     for(int j = bias; j < bias + count; j++) begin
@@ -241,7 +241,7 @@ module pcie_ats_vip #(
   // Send out-of-order invalidation completions
   task automatic send_invalidation_completions(
     input  int count,
-    input  dti_ats_inv_req_s inv_req_array[]
+    ref    dti_ats_inv_req_s inv_req_array[$]
   );
     dti_ats_inv_comp_s inv_comp;
     for(int i = count-1; i >= 0; i--) begin

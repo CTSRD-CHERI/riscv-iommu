@@ -179,3 +179,4 @@ sim/vsim/vsim.wlf
 sim/vsim/transcript
 sim/vsim/modelsim.ini
 sim/vsim/work
+rtl/bender

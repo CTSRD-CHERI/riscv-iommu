@@ -25,27 +25,36 @@ module rv_iommu_top_tb;
 
   initial begin
     wait(fixture_i.rst_ni)
-    repeat(20)
-      @(posedge fixture_i.clk_i);
-    fixture_i.i_rv_iommu_vip.reset_drvs();
-    $display("[MAIN TB] Configuring IOMMU");
-    fixture_i.i_rv_iommu_vip.s2pt_init_hw();
-    repeat(20)
-      @(posedge fixture_i.clk_i);
-    fixture_i.i_rv_iommu_vip.s1pt_init_hw();
-    repeat(20)
-      @(posedge fixture_i.clk_i);
-    fixture_i.i_rv_iommu_vip.iommu_ddt_init_hw();
-    repeat(20)
-      @(posedge fixture_i.clk_i);
-    fixture_i.i_rv_iommu_vip.iommu_cq_init();
-    repeat(20)
-      @(posedge fixture_i.clk_i);
-    $display("[MAIN TB] End Configuration");
+
     repeat(20)
       @(posedge fixture_i.clk_i);
 
+    fixture_i.i_rv_iommu_vip.reset_drvs();
+    $display("[MAIN TB] Configuring IOMMU");
+
+    fixture_i.i_rv_iommu_vip.s2pt_init_hw();
+    repeat(20)
+      @(posedge fixture_i.clk_i);
+
+    fixture_i.i_rv_iommu_vip.s1pt_init_hw();
+    repeat(20)
+      @(posedge fixture_i.clk_i);
+
+    fixture_i.i_rv_iommu_vip.iommu_ddt_init_hw();
+    repeat(20)
+      @(posedge fixture_i.clk_i);
+
+    fixture_i.i_rv_iommu_vip.iommu_cq_init();
+    repeat(20)
+      @(posedge fixture_i.clk_i);
+
+    $display("[MAIN TB] End Configuration");
+
     fixture_i.dti_translation_request();
+    repeat(20)
+      @(posedge fixture_i.clk_i);
+
+    fixture_i.dti_invalidation_request(50);
     repeat(20)
       @(posedge fixture_i.clk_i);
 

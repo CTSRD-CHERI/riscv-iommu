@@ -17,6 +17,7 @@
 
 module dti_ats_top
   import rv_iommu_dti_ats_pkg::*;
+  import rv_iommu::*;
 #(
   parameter DATA_WIDTH = 160,
   parameter MAX_INV_TOKENS = 16,
@@ -39,9 +40,9 @@ module dti_ats_top
   input  axis_rsp_t axis_rsp_up_i,
 
   // Incoming Invalidation Request (from CQ)
-  input  rv_iommu_cq_inv_req_s iommu_to_dti_inv_req_i,
-  input  logic                 iommu_to_dti_inv_valid_i,
-  output logic                 iommu_to_dti_inv_ready_o,
+  input  cq_atsinval_t iommu_to_dti_inv_req_i,
+  input  logic         iommu_to_dti_inv_valid_i,
+  output logic         iommu_to_dti_inv_ready_o,
 
   // Translation request towards IOMMU's trans logic
   output trans_req_data_t  dti_to_iommu_trans_req_o,

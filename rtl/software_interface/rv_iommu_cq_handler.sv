@@ -421,7 +421,8 @@ module rv_iommu_cq_handler #(
                            atsinval_valid_o = 1'b1;
                            if(~atsinval_ready_i)
                               state_n = DECODE;
-                        else // It is a PRGR command, not supported yet
+                        // It is a PRGR command, not supported yet
+                        end else begin
                            cqcsr_ill_o     = 1'b1;
                            cqcsr_ill_wen_o = 1'b1;
                            state_n         = ERROR;

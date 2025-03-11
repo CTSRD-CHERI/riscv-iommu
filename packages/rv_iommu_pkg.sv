@@ -328,6 +328,9 @@ package rv_iommu;
     localparam logic [2:0] DDT       = 3'b000;
     localparam logic [2:0] PDT       = 3'b001;
 
+    localparam logic [2:0] ATSINVAL  = 3'b000;
+
+
     // Generic CQ entry
     typedef struct packed {
         logic [117:0]   operands;
@@ -381,7 +384,6 @@ package rv_iommu;
     // ATS INVAL
 
     typedef struct packed {
-       logic [31:0] unused;
        logic [51:0] untrans_addr;
        logic        s;
        logic [9:0]  reserved_2;

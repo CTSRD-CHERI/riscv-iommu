@@ -42,7 +42,7 @@ module ats_dti_inv_scoreboard #(
   //-------------------------------------------------------
   // TIMER / FREQUENCY
   //-------------------------------------------------------
-  // freq_i = clock frequency in cycles/second
+  // freq_i = clock frequency in MHz
   // if ANY entry is older than 60s, remove it + raise 'timeout_o'
   //-------------------------------------------------------
   input  logic [31:0]  freq_i,
@@ -226,7 +226,7 @@ module ats_dti_inv_scoreboard #(
     for (int i = 0; i < DEPTH; i++) begin
       if (sb_q[i].valid) begin
         diff = cycle_count_q - sb_q[i].timestamp;
-        if (diff >= freq_i * 60) begin
+        if (diff >= freq_i * 60 * 1000 * 1000) begin
           // This entry times out => forcibly remove it
           sb_n[i].valid = 1'b0;
 

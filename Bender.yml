@@ -26,12 +26,17 @@ dependencies:
   axi_stream: { git: https://github.com/pulp-platform/axi_stream.git, rev: 54891ff40455ca94a37641b9da4604647878cc07 } # version v0.1.1
   common_cells: { git: "https://github.com/pulp-platform/common_cells.git", rev: c27bce39ebb2e6bae52f60960814a2afca7bd4cb } # version 1.37.0
   axi_slice: { git: "git@github.com:pulp-platform/axi_slice.git", rev: a4f72bc21ac4d7da631e8309d9f8d0c34b735c23 } # version: 1.1.4
+  register_interface: { git: https://github.com/pulp-platform/register_interface.git,   version: 0.4.2 }
+
 
 export_include_dirs:
   - vendor/axi/include
   - vendor/common_cells/include
   - vendor/register_interface/include
   - include
+
+workspace:
+  checkout_dir: rtl/bender
 
 sources:
 
@@ -43,6 +48,8 @@ sources:
 
   - vendor/modified/fifo.sv
   - vendor/modified/rv_iommu_axi2apb_64_32.sv
+
+  - vendor/register_interface/src/axi_to_reg_v2.sv
 
   - rtl/ext_interfaces/rv_iommu_ds_if.sv
   - rtl/ext_interfaces/rv_iommu_prog_if.sv

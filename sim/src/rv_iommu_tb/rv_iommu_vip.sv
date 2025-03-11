@@ -57,6 +57,9 @@ module rv_iommu_vip #(
    input  axi_prog_resp_t axi_iommu_prog_resp_i
 );
 
+   import rv_iommu_dti_ats_pkg::*;
+   import rv_iommu::*;
+
    // --------------------------------------------------------------------------
    // Proposed memory map assignments (example)
    // --------------------------------------------------------------------------
@@ -215,8 +218,8 @@ module rv_iommu_vip #(
      .DW( DATA_WIDTH ),
      .IW( ID_WIDTH   ),
      .UW( USER_WIDTH ),
-     .TA( 0 ),
-     .TT( 0 )
+     .TA( 0.15*REFClockPeriod ),
+     .TT( 0.85*REFClockPeriod )
    ) axi_driver_t;
 
    typedef struct packed {
@@ -480,19 +483,24 @@ module rv_iommu_vip #(
      aw_beat.ax_atop   = '0; // No atomic operation
      aw_beat.ax_user   = '0;
 
-     // Send AW
-     drv.send_aw(aw_beat);
-
      //--------------------------------------------------------------------------
      // Construct W beat
      //--------------------------------------------------------------------------
-     w_beat.w_data  = data;
-     w_beat.w_strb  = { (DATA_WIDTH/8) {1'b1} }; // All bytes valid
-     w_beat.w_last  = 1'b1;             // Single beat => last = 1
+     w_beat.w_data  = addr[3:0] == 4'h4 ? {data[31:0], 32'h0} : data;
+     w_beat.w_strb  = addr[3:0] == 4'h4 ? 8'b11110000 : 8'b11111111;
+     w_beat.w_last  = 1'b1;
      w_beat.w_user  = '0;
 
-     // Send W
-     drv.send_w(w_beat);
+     fork
+   //      Send AW
+       begin
+           drv.send_aw(aw_beat);
+        end
+    //     Send W
+        begin
+           drv.send_w(w_beat);
+        end
+     join
 
      //--------------------------------------------------------------------------
      // Receive B response
@@ -554,6 +562,120 @@ module rv_iommu_vip #(
      // Optionally, check r_beat.r_resp if you want to verify correct response
      // e.g. if (r_beat.r_resp != axi_pkg::RESP_OKAY) ...
    endtask: axi_single_read
+   //-------------------------------------------------------------------------
+   // 32-bit Versions of Single-beat AXI Write/Read Tasks
+   //-------------------------------------------------------------------------
+
+   // Single-beat AXI Write: selects one of the drivers (using "prog") and performs
+   // a 32-bit transaction.
+   task automatic axi_single_write_select_32 (
+     input string                   driver_name,
+     input logic [ADDR_WIDTH-1:0]     addr,
+     input logic [31:0]               data,
+     input logic [ID_WIDTH-1:0]       id          = '0,
+     input axi_pkg::burst_t           burst_type  = axi_pkg::BURST_INCR
+   );
+      axi_driver_t local_drv = select_driver(driver_name);
+      axi_single_write_32(local_drv, addr, data, id, burst_type);
+   endtask: axi_single_write_select_32
+
+   // 32-bit Single-beat AXI Write: performs a 32-bit transaction.
+   task automatic axi_single_write_32 (
+     inout axi_driver_t              drv,
+     input  logic [ADDR_WIDTH-1:0]    addr,
+     input  logic [31:0]              data,
+     input  logic [ID_WIDTH-1:0]      id         = '0,
+     input  axi_pkg::burst_t          burst_type = axi_pkg::BURST_INCR
+   );
+      // Local variables for AW/W/B beats
+      axi_driver_t::ax_beat_t aw_beat = new();
+      axi_driver_t::w_beat_t  w_beat  = new();
+      axi_driver_t::b_beat_t  b_beat  = new();
+
+      // Construct AW beat (single-beat burst => ax_len = 0)
+      aw_beat.ax_id     = id;
+      aw_beat.ax_addr   = addr;
+      aw_beat.ax_len    = 0; // Single beat
+      aw_beat.ax_size   = $clog2(32/8); // 32-bit = 4 bytes => log2(4)=2
+      aw_beat.ax_burst  = burst_type;
+      aw_beat.ax_lock   = 1'b0;
+      aw_beat.ax_cache  = 4'b0011;     // Normal non-cacheable, bufferable
+      aw_beat.ax_prot   = 3'b000;
+      aw_beat.ax_qos    = '0;
+      aw_beat.ax_region = '0;
+      aw_beat.ax_atop   = '0;          // No atomic operation
+      aw_beat.ax_user   = '0;
+
+      // Construct W beat
+      w_beat.w_data  = data;
+      w_beat.w_strb  = { (32/8) {1'b1} }; // 4 bytes, all valid
+      w_beat.w_last  = 1'b1;               // Single beat, so last = 1
+      w_beat.w_user  = '0;
+
+    //  fork
+        // Send AW
+     //   begin
+           drv.send_aw(aw_beat);
+     //   end
+        // Send W
+      //  begin
+           drv.send_w(w_beat);
+       // end
+    // join
+
+      // Receive B response
+      drv.recv_b(b_beat);
+      // (Optionally, check b_beat.b_resp here)
+   endtask: axi_single_write_32
+
+   // Single-beat AXI Read: selects one of the drivers (using "prog") and performs
+   // a 32-bit transaction.
+   task automatic axi_single_read_select_32 (
+     input string                 driver_name,
+     input logic [ADDR_WIDTH-1:0] addr,
+     output logic [63:0]          read_data,
+     input logic [ID_WIDTH-1:0]   id = '0,
+     input logic [7:0]            byte_enable = 8'hFF,
+     input                        axi_pkg::burst_t burst_type = axi_pkg::BURST_INCR
+   );
+      axi_driver_t local_drv = select_driver(driver_name);
+      axi_single_read_32(local_drv, addr, read_data, id, burst_type);
+   endtask: axi_single_read_select_32
+
+   // 32-bit Single-beat AXI Read: performs a 32-bit transaction.
+   task automatic axi_single_read_32 (
+     inout axi_driver_t              drv,
+     input  logic [ADDR_WIDTH-1:0]    addr,
+     output logic [31:0]              read_data,
+     input  logic [ID_WIDTH-1:0]      id         = '0,
+     input  axi_pkg::burst_t          burst_type = axi_pkg::BURST_INCR
+   );
+      // Local variables for AR/R beats
+      axi_driver_t::ax_beat_t ar_beat = new();
+      axi_driver_t::r_beat_t  r_beat;
+
+      // Construct AR beat (single-beat burst => ax_len = 0)
+      ar_beat.ax_id     = id;
+      ar_beat.ax_addr   = addr;
+      ar_beat.ax_len    = 0; // Single beat
+      ar_beat.ax_size   = $clog2(32/8); // 32-bit = 4 bytes => log2(4)=2
+      ar_beat.ax_burst  = burst_type;
+      ar_beat.ax_lock   = 1'b0;
+      ar_beat.ax_cache  = 4'b0011;     // Normal non-cacheable, bufferable
+      ar_beat.ax_prot   = 3'b000;
+      ar_beat.ax_qos    = '0;
+      ar_beat.ax_region = '0;
+      ar_beat.ax_atop   = '0;          // Not used for read
+      ar_beat.ax_user   = '0;
+
+      // Send AR beat
+      drv.send_ar(ar_beat);
+
+      // Receive R data (single beat)
+      drv.recv_r(r_beat);
+      read_data = r_beat.r_data;
+      // (Optionally, check r_beat.r_resp here)
+   endtask: axi_single_read_32
 
    // --------------------------------------------------------------------------
    // "Test page permission table" from your C code, as functions
@@ -838,6 +960,7 @@ module rv_iommu_vip #(
      logic [31:0] reg_data;
      // Compute the value for the command-queue base register:
      //   cqb_val = ( (COMMAND_QUEUE_BASE >> 2) & CQB_PPN_MASK ) | CQ_LOG2SZ_1;
+      
      cqb_val = (((COMMAND_QUEUE_BASE >> 2) & CQB_PPN_MASK) | CQ_LOG2SZ_1);
 
      // Program the 64-bit cqb register using two 32-bit writes.
@@ -866,28 +989,25 @@ module rv_iommu_vip #(
    // command queue memory and then writes the two words. Finally, it increments cqt.
    //----------------------------------------------------------------
    task automatic rv_iommu_write_command_in_queue(
-     input logic [63:0] new_cmd0,
-     input logic [63:0] new_cmd1
+     ref cq_atsinval_t inval_i
    );
      logic [31:0] cqt;
      logic [31:0] cq_entry_addr;
-     // Split 64-bit words into two 32-bit halves
-     logic [31:0] lower_new_cmd0, upper_new_cmd0;
-     logic [31:0] lower_new_cmd1, upper_new_cmd1;
+
      // Read the current command-queue tail index (cqt)
-     axi_single_read_select("prog", IOMMU_CQT_ADDR, cqt);
+     axi_single_read_select("prog", 64'h24, cqt);
 
      // Compute the address of the next CQ entry:
-     //   Each entry is 16 bytes (2×64-bit words) so we shift cqt by 4 bits.
+     // Each entry is 16 bytes (2×64-bit words) so we shift cqt by 4 bits.
      cq_entry_addr = (COMMAND_QUEUE_BASE & CQ_PPN_MASK32) | (cqt << 4);
 
      // Write the first 64-bit word at the computed command queue address.
-     mem_write(cq_entry_addr,      new_cmd0);
-     mem_write(cq_entry_addr + 8,  new_cmd1);
+     mem_write(cq_entry_addr,      inval_i[63:0]);
+     mem_write(cq_entry_addr + 8,  inval_i[127:64]);
 
      // Increment the command-queue tail pointer and program it back.
      cqt = cqt + 1;
-     axi_single_write_select("prog", IOMMU_CQT_ADDR, cqt);
+     axi_single_write_select("prog", 64'h24, cqt);
    endtask
 
 endmodule

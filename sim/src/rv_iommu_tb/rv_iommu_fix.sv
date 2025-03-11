@@ -29,6 +29,7 @@ module rv_iommu_top_fix;
 
    import rv_iommu_dti_ats_pkg::*;
    import rv_iommu_cfg::*;
+   import rv_iommu::*;
 
    localparam rv_iommu_cfg_t RVIOMMUCfg = rv_iommu_cfg::rv_iommu_cfg_t'{
         NumOutstandingTrans : 32'd8,
@@ -58,7 +59,8 @@ module rv_iommu_top_fix;
         AxisKeepWidth       : 32'd20,
         AxisStrbWidth       : 32'd20,
         AxisIdWidth         : 32'd1,
-        AxisDestWidth       : 32'd1
+        AxisDestWidth       : 32'd1,
+        Freq                : 32'd100
    };
    // -------------------------------------------------
    // Parameters
@@ -86,7 +88,7 @@ module rv_iommu_top_fix;
 
    localparam int unsigned NUM_INV       = 16;
    localparam int unsigned NUM_REP       = 1;
-   localparam int unsigned NUM_TRANS_REQ = 50;
+   localparam int unsigned NUM_TRANS_REQ = 32;
 
    typedef logic                  tvalid_t;
    typedef logic [DATA_WIDTH-1:0] tdata_t;
@@ -126,6 +128,9 @@ module rv_iommu_top_fix;
    // For ATS translation request
    dti_ats_trans_req_s trans_req_pcie;
    dti_ats_trans_resp_s dti_trans_resp;
+
+   dti_ats_inv_req_s inv_req_array[$];
+   cq_atsinval_t     cq_inv_req[];
 
    // -------------------------------------------------
    // DUT IO Signals
@@ -460,7 +465,7 @@ module rv_iommu_top_fix;
    // -------------------------------------------------
 
    // -------------------------------------------------
-   // DTI Translation Request Test
+   // DTI Translation Request Tasks
    // -------------------------------------------------
    task automatic dti_translation_request();
      // Wait for reset
@@ -490,7 +495,71 @@ module rv_iommu_top_fix;
      join
 
      repeat(20) @(posedge clk_i);    // 4) Disconnect
+   endtask
+
+   // -------------------------------------------------
+   // DTI Invalidation Request Tasks
+   // -------------------------------------------------
+   // Send a single invalidation request from “Core to IOMMU” side
+   // (the interface signals: cq_inv_req + cq_inv_valid).
+   task automatic do_send_one_inv_req(
+     input logic [51:0] GVA,
+     ref cq_atsinval_t  cq_inv_req
+   );
+
+     cq_inv_req                = '0;
+     cq_inv_req.opcode         = ATS;
+     cq_inv_req.func3          = ATSINVAL;
+     cq_inv_req.pid            = '0;
+     cq_inv_req.pv             = 1'b0;
+     cq_inv_req.dsv            = 1'b0;
+     cq_inv_req.dseg           = 8'h00;
+     cq_inv_req.rid            = 1;
+     cq_inv_req.s              = 1'b0;
+     cq_inv_req.untrans_addr   = GVA;
+
+     $display("[IOMMU VIP] Attempting Invalidation Req GVA=%0X => %p", GVA, cq_inv_req);
+
+     i_rv_iommu_vip.rv_iommu_write_command_in_queue(cq_inv_req);
+     repeat(3) @(posedge clk_i);
+   endtask
+
+   // Send N invalidation requests in a loop
+   task automatic do_send_core_invalidations(
+     input int count,
+     input int start_id,
+     ref cq_atsinval_t  cq_inv_req[]
+   );
+     for (int i = start_id; i < start_id + count; i++) begin
+       do_send_one_inv_req (52'h1_0000_0000 + i*52'h1000,cq_inv_req[i]);
+     end
+   endtask
+
+   // Simple wrapper for a multi-phase send:
+   task automatic dti_invalidation_request(
+     input  int num_inv
+   );
+
+     fork
+        begin
+           $display("[IOMMU VIP] Starting core invalidation sender...");
+           do_send_core_invalidations(num_inv, 0, cq_inv_req);
+           $display("[IOMMU VIP] Done sending all core invalidations.");
+        end
+        begin
+           $display("[IOMMU VIP] Starting receiving invalidations from IOMMU...");
+           i_pcie_vip.do_receive_inv_requests(num_inv,inv_req_array,0);
+           $display("[IOMMU VIP] Done receiving invalidations from IOMMU.");
+        end
+     join
+
+     // Send Invalidation Completion
+     i_pcie_vip.send_invalidation_completions(num_inv,inv_req_array);
+
+     repeat(20) @(posedge clk_i);
      i_pcie_vip.do_disconnect(condis_discon_req, condis_discon_ack);
+     repeat(20) @(posedge clk_i);
+
      $display("[TB] ---- Disconnect Done ----");
    endtask
 
