@@ -14,10 +14,19 @@
 // Authors:
 // - Maicol Ciani <maicol.ciani@unibo.it>
 //
-// Description: Fixture including the DuT, tasks and processes for testing.
+// Top-level test fixture that:
+//  - Instantiates the DUT (rv_iommu_wrap)
+//  - Instantiates the two VIP modules (pcie_ats_vip, rv_iommu_vip)
+//  - Defines a scoreboard/tracker (ats_translation_tracker)
+//  - Defines an environment (rv_iommu_top_env) that uses both agents
+//  - Runs the scenario
 //
+// -----------------------------------------------------------------------------
 
 `timescale 1ps/1ps
+
+`include "axi/typedef.svh"
+`include "axi/assign.svh"
 
 `include "axi_stream/typedef.svh"
 `include "axi_stream/assign.svh"
@@ -27,41 +36,13 @@
 
 module rv_iommu_top_fix;
 
-   import rv_iommu_dti_ats_pkg::*;
-   import rv_iommu_cfg::*;
-   import rv_iommu::*;
+  import rv_iommu::*;
+  import rv_iommu_cfg::*;
+  import rv_iommu_vip_pkg::*;
+  import rv_iommu_dti_ats_pkg::*;
+  import pcie_ats_vip_pkg::*;
+  import rv_iommu_fix_pkg::*;
 
-   localparam rv_iommu_cfg_t RVIOMMUCfg = rv_iommu_cfg::rv_iommu_cfg_t'{
-        NumOutstandingTrans : 32'd8,
-        WFifoDepth          : 32'd32,
-        MrifFifoDepth       : 32'd8,
-        FaultFifoDepth      : 32'd8,
-        NumIotlbEntries     : 32'd16,
-        NumDdtcEntries      : 32'd8,
-        NumPdtcEntries      : 32'd8,
-        NumMrifcEntries     : 32'd8,
-        InclPC              : 1'b1,
-        InclAxiBC           : 1'b1,
-        InclDbg             : 1'b1,
-        InclATS             : 1'b1,
-        MSITrans            : rv_iommu_cfg::MSI_BT_MRIF,
-        IGS                 : rv_iommu_cfg::BOTH,
-        NumIntVec           : 32'd16,
-        NumHpmCounters      : 32'd31,
-        PAddrWidth          : 32'd56,
-        AxiAddrWidth        : 32'd64,
-        AxiDataWidth        : 32'd64,
-        AxiIdWidth          : 32'd4,
-        AxiProgIdWidth      : 32'd6,
-        AxiUserWidth        : 32'd1,
-        AxisDataWidth       : 32'd160,
-        AxisUserWidth       : 32'd1,
-        AxisKeepWidth       : 32'd20,
-        AxisStrbWidth       : 32'd20,
-        AxisIdWidth         : 32'd1,
-        AxisDestWidth       : 32'd1,
-        Freq                : 32'd100
-   };
    // -------------------------------------------------
    // Parameters
    // -------------------------------------------------
@@ -100,6 +81,19 @@ module rv_iommu_top_fix;
    typedef logic                  tready_t;
    typedef logic                  tlast_t;
 
+   logic clk_i;
+   logic rst_ni;
+
+   MEM_INTF #(
+     .ADDR_WIDTH(RVIOMMUCfg.AxiAddrWidth),
+     .DATA_WIDTH(RVIOMMUCfg.AxiDataWidth)
+   ) mem_intf();
+
+   MEM_INTF_DV #(
+     .ADDR_WIDTH(RVIOMMUCfg.AxiAddrWidth),
+     .DATA_WIDTH(RVIOMMUCfg.AxiDataWidth)
+   ) mem_intf_dv(clk_i,rst_ni);
+
    `AXI_STREAM_TYPEDEF_ALL(axis, tdata_t, tstrb_t, tkeep_t, tid_t, tdest_t, tuser_t)
    `AXI_TYPEDEF_EXT_ALL(axi_tr, addr_t, id_t, data_t, strb_t, user_t, sid_t, ssidv_t, ssid_t)
    `AXI_TYPEDEF_ALL(axi_comp, addr_t, id_t, data_t, strb_t, user_t)
@@ -121,22 +115,9 @@ module rv_iommu_top_fix;
    axi_prog_req_t  axi_iommu_prog_req;
    axi_prog_resp_t axi_iommu_prog_resp;
 
-   // For con/dis connect
-   dti_ats_condis_req_s  condis_con_req, condis_discon_req;
-   dti_ats_condis_ack_s  condis_con_ack, condis_discon_ack;
-
-   // For ATS translation request
-   dti_ats_trans_req_s trans_req_pcie;
-   dti_ats_trans_resp_s dti_trans_resp;
-
-   dti_ats_inv_req_s inv_req_array[$];
-   cq_atsinval_t     cq_inv_req[];
-
    // -------------------------------------------------
    // DUT IO Signals
    // -------------------------------------------------
-   logic clk_i;
-   logic rst_ni;
 
    /*** Translation Request Interface (Slave) ***/
    logic                s_axi_tr_awvalid;
@@ -381,6 +362,13 @@ module rv_iommu_top_fix;
    assign s_axi_tr_aw_substream_id = axi_iommu_tr_req.aw.substream_id;
    assign s_axi_tr_aw_ss_id_valid  = axi_iommu_tr_req.aw.ss_id_valid;
 
+   assign mem_intf.req = mem_intf_dv.req;
+   assign mem_intf.wen = mem_intf_dv.wen;
+   assign mem_intf.be = mem_intf_dv.be;
+   assign mem_intf.addr = mem_intf_dv.addr;
+   assign mem_intf.wdata = mem_intf_dv.wdata;
+   assign mem_intf_dv.rdata = mem_intf.rdata;
+
    // -------------------------------------------------
    // PCIe: ATS-DTI Verification IP
    // -------------------------------------------------
@@ -432,7 +420,9 @@ module rv_iommu_top_fix;
      .axi_iommu_ds_resp_o   ( axi_iommu_ds_resp   ),
      // Programming Interface
      .axi_iommu_prog_req_o  ( axi_iommu_prog_req  ),
-     .axi_iommu_prog_resp_i ( axi_iommu_prog_resp )
+     .axi_iommu_prog_resp_i ( axi_iommu_prog_resp ),
+     // Task port to access SIM MEM
+     .mem_intf              ( mem_intf            )
    );
 
    // -------------------------------------------------
@@ -446,121 +436,94 @@ module rv_iommu_top_fix;
      .*
    );
 
-   // -------------------------------------------------
-   // Clock and Reset
-   // -------------------------------------------------
-   initial begin
-     clk_i = 1'b0;
-     forever #(REFClockPeriod/2) clk_i = ~clk_i;
-   end
+  // 1) Create scoreboard
+  ats_translation_tracker tracker = new();
 
-   initial begin
-     rst_ni = 1'b0;
-     repeat(100) @(posedge clk_i);
-     rst_ni = 1'b1;
-   end
+  typedef axi_stream_test::axi_stream_driver #(
+    .DataWidth (DATA_WIDTH),
+    .IdWidth   (ID_WIDTH),
+    .DestWidth (DEST_WIDTH),
+    .UserWidth (USER_WIDTH),
+    .TestTime  (0.85*REFClockPeriod),
+    .ApplTime  (0.15*REFClockPeriod)
+  ) pcie_stream_drv_t;
 
-   // -------------------------------------------------
-   // Tasks and Functions
-   // -------------------------------------------------
+  // AXI driver declarations
+  typedef axi_test::axi_driver #(
+    .AW( RVIOMMUCfg.AxiAddrWidth ),
+    .DW( RVIOMMUCfg.AxiDataWidth ),
+    .IW( RVIOMMUCfg.AxiIdWidth   ),
+    .UW( RVIOMMUCfg.AxiUserWidth ),
+    .TA( 0.15*REFClockPeriod ),
+    .TT( 0.85*REFClockPeriod )
+  ) iommu_axi_driver_t;
 
-   // -------------------------------------------------
-   // DTI Translation Request Tasks
-   // -------------------------------------------------
-   task automatic dti_translation_request();
-     // Wait for reset
-     wait(rst_ni);
-     @(posedge clk_i);
+  pcie_stream_drv_t master_drv = new(i_pcie_vip.master_dv);
+  pcie_stream_drv_t slave_drv  = new(i_pcie_vip.slave_dv);
 
-     i_pcie_vip.reset();
-     repeat(30) @(posedge clk_i);
+  iommu_axi_driver_t axi_tr_drv   = new(i_rv_iommu_vip.axi_tr_drv_intf_dv);
+  iommu_axi_driver_t axi_comp_drv = new(i_rv_iommu_vip.axi_comp_drv_intf_dv);
+  iommu_axi_driver_t axi_prog_drv = new(i_rv_iommu_vip.axi_prog_drv_intf_dv);
 
-     // 1) Perform Connect using the DTI-ATS VIP
-     i_pcie_vip.do_connect(condis_con_req, condis_con_ack);
-     $display("[TB] ---- Connect Done ----");
-     repeat(20) @(posedge clk_i);
+  // 2) Create the pcie_ats_vip_agent, passing references to the VIP module drivers
+  pcie_ats_vip_agent #(
+    .DATA_WIDTH (DATA_WIDTH),
+    .ID_WIDTH   (ID_WIDTH),
+    .DEST_WIDTH (DEST_WIDTH),
+    .USER_WIDTH (USER_WIDTH),
+    .TestTime   (0.85*REFClockPeriod),
+    .ApplTime   (0.15*REFClockPeriod)
+  ) pcie_agent = new(
+    master_drv,
+    slave_drv
+  );
 
-     fork
-       begin : f1
-         // Send N translation requests (PCIe->DTI)
-         i_pcie_vip.send_n_trans_requests(NUM_TRANS_REQ, trans_req_pcie);
-       end
+  // 3) Create the rv_iommu_vip_agent
+  rv_iommu_vip_agent  #(
+    .DATA_WIDTH (RVIOMMUCfg.AxiDataWidth),
+    .ADDR_WIDTH (RVIOMMUCfg.AxiAddrWidth),
+    .ID_WIDTH   (RVIOMMUCfg.AxiIdWidth),
+    .USER_WIDTH (RVIOMMUCfg.AxiUserWidth),
+    .TestTime   (0.85*REFClockPeriod),
+    .ApplTime   (0.15*REFClockPeriod)
+  ) iommu_agent = new(
+    mem_intf_dv,
+    axi_tr_drv,
+    axi_comp_drv,
+    axi_prog_drv
+  );
 
-       begin : f2
-         // The final ATS translation responses come out on the slave AXI
-         i_pcie_vip.receive_dti_translation_responses(
-           NUM_TRANS_REQ, dti_trans_resp
-         );
-       end
-     join
+  // 4) Create environment
+  rv_iommu_top_env   #(
+    .AXIS_DATA_WIDTH (DATA_WIDTH),
+    .AXIS_ID_WIDTH   (ID_WIDTH),
+    .AXIS_DEST_WIDTH (DEST_WIDTH),
+    .AXIS_USER_WIDTH (USER_WIDTH),
+    .AXI_DATA_WIDTH  (RVIOMMUCfg.AxiDataWidth),
+    .AXI_ADDR_WIDTH  (RVIOMMUCfg.AxiAddrWidth),
+    .AXI_ID_WIDTH    (RVIOMMUCfg.AxiIdWidth),
+    .AXI_USER_WIDTH  (RVIOMMUCfg.AxiUserWidth),
+    .TestTime        (0.85*REFClockPeriod),
+    .ApplTime        (0.15*REFClockPeriod)
+  ) env = new(
+    pcie_agent,
+    iommu_agent,
+    tracker,
+    32, // NUM_TRANS_REQ
+    32  // NUM_INV
+  );
 
-     repeat(20) @(posedge clk_i);    // 4) Disconnect
-   endtask
+  // Clock
+  initial begin
+    clk_i = 1'b0;
+    forever #(REFClockPeriod/2) clk_i = ~clk_i;
+  end
 
-   // -------------------------------------------------
-   // DTI Invalidation Request Tasks
-   // -------------------------------------------------
-   // Send a single invalidation request from “Core to IOMMU” side
-   // (the interface signals: cq_inv_req + cq_inv_valid).
-   task automatic do_send_one_inv_req(
-     input logic [51:0] GVA,
-     ref cq_atsinval_t  cq_inv_req
-   );
-
-     cq_inv_req                = '0;
-     cq_inv_req.opcode         = ATS;
-     cq_inv_req.func3          = ATSINVAL;
-     cq_inv_req.pid            = '0;
-     cq_inv_req.pv             = 1'b0;
-     cq_inv_req.dsv            = 1'b0;
-     cq_inv_req.dseg           = 8'h00;
-     cq_inv_req.rid            = 1;
-     cq_inv_req.s              = 1'b0;
-     cq_inv_req.untrans_addr   = GVA;
-
-     $display("[IOMMU VIP] Attempting Invalidation Req GVA=%0X => %p", GVA, cq_inv_req);
-
-     i_rv_iommu_vip.rv_iommu_write_command_in_queue(cq_inv_req);
-     repeat(3) @(posedge clk_i);
-   endtask
-
-   // Send N invalidation requests in a loop
-   task automatic do_send_core_invalidations(
-     input int count,
-     input int start_id,
-     ref cq_atsinval_t  cq_inv_req[]
-   );
-     for (int i = start_id; i < start_id + count; i++) begin
-       do_send_one_inv_req (52'h1_0000_0000 + i*52'h1000,cq_inv_req[i]);
-     end
-   endtask
-
-   // Simple wrapper for a multi-phase send:
-   task automatic dti_invalidation_request(
-     input  int num_inv
-   );
-
-     fork
-        begin
-           $display("[IOMMU VIP] Starting core invalidation sender...");
-           do_send_core_invalidations(num_inv, 0, cq_inv_req);
-           $display("[IOMMU VIP] Done sending all core invalidations.");
-        end
-        begin
-           $display("[IOMMU VIP] Starting receiving invalidations from IOMMU...");
-           i_pcie_vip.do_receive_inv_requests(num_inv,inv_req_array,0);
-           $display("[IOMMU VIP] Done receiving invalidations from IOMMU.");
-        end
-     join
-
-     // Send Invalidation Completion
-     i_pcie_vip.send_invalidation_completions(num_inv,inv_req_array);
-
-     repeat(20) @(posedge clk_i);
-     i_pcie_vip.do_disconnect(condis_discon_req, condis_discon_ack);
-     repeat(20) @(posedge clk_i);
-
-     $display("[TB] ---- Disconnect Done ----");
-   endtask
+  // Reset
+  initial begin
+    rst_ni = 1'b0;
+    repeat(100) @(posedge clk_i);
+    rst_ni = 1'b1;
+  end
 
 endmodule

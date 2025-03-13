@@ -17,6 +17,7 @@
 
 module ats_dti_inv_sync_cmd_fsm
   import rv_iommu_dti_ats_pkg::*;
+  import rv_iommu::*;
 #(
   parameter int MAX_TOKENS = 16
 ) (
@@ -41,15 +42,13 @@ module ats_dti_inv_sync_cmd_fsm
   output logic         dn_msg_ready_o,
 
   // Incoming Invalidation Request (from CQ)
-  input rv_iommu_cq_inv_req_s iommu_to_dti_inv_req_i,
-  input logic                 iommu_to_dti_inv_valid_i,
-  output logic                iommu_to_dti_inv_ready_o,
+  input cq_atsinval_t  iommu_to_dti_inv_req_i,
+  input logic          iommu_to_dti_inv_valid_i,
+  output logic         iommu_to_dti_inv_ready_o,
 
-  output logic                dti_to_iommu_inv_inflight_o,
+  output logic         dti_to_iommu_inv_inflight_o,
 
-  input logic [3:0]           granted_inv_tok_i,
-
-
+  input logic [3:0]    granted_inv_tok_i,
 
   // T bit support (defined during condis)
   input logic                 t_bit_i,
@@ -99,7 +98,7 @@ module ats_dti_inv_sync_cmd_fsm
      WAIT_READY
    } inv_sync_req_state_t;
 
-   rv_iommu_cq_inv_req_s iommu_to_dti_inv_req;
+   cq_atsinval_t         iommu_to_dti_inv_req;
 
    dti_ats_inv_req_s     iommu_to_pcie_inv_req;
    dti_ats_inv_ack_s     pcie_to_iommu_inv_ack;
@@ -164,7 +163,7 @@ module ats_dti_inv_sync_cmd_fsm
      .FALL_THROUGH  ( 1'b0                  ),
      .DATA_WIDTH    ( PAYLOAD_SIZE          ),
      .DEPTH         ( 16                    ),
-     .dtype         ( rv_iommu_cq_inv_req_s )
+     .dtype         ( cq_atsinval_t         )
    ) i_inv_req_fifo (
      .clk_i     ( clk_i      ),
      .rst_ni    ( rst_ni     ),

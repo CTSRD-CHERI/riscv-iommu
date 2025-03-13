@@ -399,6 +399,15 @@ package rv_iommu;
        logic [6:0]  opcode;
     } cq_atsinval_t;
 
+    typedef struct packed {
+      bit [7:0]   trans_id_lsb;
+      bit [51:0]  gva;
+      bit [51:0]  spa;
+      bit [3:0]   itag;
+      bit         valid;
+      bit         shared;
+    } ats_entry_t;
+
     //----------------------
     // Fault CAUSE Encoding
     //----------------------

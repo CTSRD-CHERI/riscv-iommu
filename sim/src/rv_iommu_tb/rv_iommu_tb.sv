@@ -21,11 +21,25 @@
 
 module rv_iommu_top_tb;
 
+  import rv_iommu::*;
+  import rv_iommu_cfg::*;
+  import rv_iommu_vip_pkg::*;
+  import rv_iommu_dti_ats_pkg::*;
+  import pcie_ats_vip_pkg::*;
+  import rv_iommu_fix_pkg::*;
+  import rv_iommu_fix_pkg::*;
+
   rv_iommu_top_fix fixture_i();
 
   initial begin
     wait(fixture_i.rst_ni)
 
+    repeat(2000)
+      @(posedge fixture_i.clk_i);
+
+    fixture_i.env.run_test();
+    //fixture_i.pcie_agent.reset();
+/*
     repeat(20)
       @(posedge fixture_i.clk_i);
 
@@ -57,7 +71,9 @@ module rv_iommu_top_tb;
     fixture_i.dti_invalidation_request(50);
     repeat(20)
       @(posedge fixture_i.clk_i);
-
+*/
+    repeat(20)
+      @(posedge fixture_i.clk_i);
     $stop;
   end
 

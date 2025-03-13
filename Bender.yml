@@ -93,11 +93,12 @@ sources:
   - rtl/rv_iommu_top.sv
   - rtl/rv_iommu_wrap.sv
 
-  - sim/src/pcie_ats_vip.sv
-#  - sim/src/rv_iommu_dti_ats_top_tb/iommu_vip.sv
-#  - sim/src/rv_iommu_dti_ats_top_tb/rv_iommu_dti_ats_top_tb.sv
-#  - sim/src/rv_iommu_dti_ats_top_tb/rv_iommu_dti_ats_top_fix.sv
+  - sim/src/pcie_ats_vip_pkg.sv
+  - sim/src/rv_iommu_tb/mem_intf.sv
   - sim/src/rv_iommu_tb/axi2mem.sv
+  - sim/src/rv_iommu_tb/rv_iommu_vip_pkg.sv
+  - sim/src/rv_iommu_tb/rv_iommu_fix_pkg.sv
+  - sim/src/pcie_ats_vip.sv
   - sim/src/rv_iommu_tb/rv_iommu_vip.sv
   - sim/src/rv_iommu_tb/rv_iommu_fix.sv
   - sim/src/rv_iommu_tb/rv_iommu_tb.sv
