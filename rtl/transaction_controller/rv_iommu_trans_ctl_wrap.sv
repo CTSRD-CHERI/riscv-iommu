@@ -218,10 +218,13 @@ module rv_iommu_trans_ctl_wrap #(
     axi_pkg::size_t     check_nbytes;
 
     logic is_read;
-    assign is_read = ((trans_req_data_q.ttype == rv_iommu::UNTRANSLATED_RX) || 
-                             (trans_req_data_q.ttype == rv_iommu::UNTRANSLATED_R));
+    assign is_read = ((trans_req_data_q.ttype == rv_iommu::UNTRANSLATED_RX) ||
+                      (trans_req_data_q.ttype == rv_iommu::UNTRANSLATED_R ) ||
+                      (trans_req_data_q.ttype == rv_iommu::TRANSLATED_R )   ||
+                      (trans_req_data_q.ttype == rv_iommu::TRANSLATED_R )   );
     logic is_write;
-    assign is_write = (trans_req_data_q.ttype == rv_iommu::UNTRANSLATED_W);
+    assign is_write = (trans_req_data_q.ttype == rv_iommu::UNTRANSLATED_W ||
+                       trans_req_data_q.ttype == rv_iommu::TRANSLATED_W   );
 
     generate
     if (RVIOMMUCfg.InclAxiBC) begin : gen_axi_bc
@@ -573,19 +576,24 @@ module rv_iommu_trans_ctl_wrap #(
             // Monitor incoming requests
             // Priority is given to read requests
             IDLE: begin
-                
                 // Read request received
                 if (ar_valid) begin
-                    
                     // Tags
                     trans_req_data_n.iova       = ar_data.addr;
                     trans_req_data_n.did        = ar_data.stream_id;
                     trans_req_data_n.pid_valid  = ar_data.ss_id_valid;
                     trans_req_data_n.pid        = ar_data.substream_id;
-                    // ARPROT[2] indicates data access (r) when LOW, instruction access (rx) when HIGH
-                    trans_req_data_n.ttype      = (ar_data.prot[2]) ? 
-                                                    (rv_iommu::UNTRANSLATED_RX) : 
-                                                    (rv_iommu::UNTRANSLATED_R);
+                    if(ar_data.mmu_atst && !ar_data.mmu_valid) begin
+                       // ARPROT[2] indicates data access (r) when LOW, instruction access (rx) when HIGH
+                       trans_req_data_n.ttype   = (ar_data.prot[2]) ?
+                                                  (rv_iommu::TRANSLATED_RX) :
+                                                  (rv_iommu::TRANSLATED_R);
+                    end else begin
+                       // ARPROT[2] indicates data access (r) when LOW, instruction access (rx) when HIGH
+                       trans_req_data_n.ttype   = (ar_data.prot[2]) ?
+                                                  (rv_iommu::UNTRANSLATED_RX) :
+                                                  (rv_iommu::UNTRANSLATED_R);
+                    end
                     // AxPROT[0] indicates privileged transaction when set
                     trans_req_data_n.priv       = ar_data.prot[0];
                     trans_req_data_n.is_debug   = 1'b0;
@@ -602,7 +610,9 @@ module rv_iommu_trans_ctl_wrap #(
                     trans_req_data_n.did        = aw_data.stream_id;
                     trans_req_data_n.pid_valid  = aw_data.ss_id_valid;
                     trans_req_data_n.pid        = aw_data.substream_id;
-                    trans_req_data_n.ttype      = rv_iommu::UNTRANSLATED_W;
+                    trans_req_data_n.ttype      = aw_data.mmu_atst && !aw_data.mmu_valid ?
+                                                  rv_iommu::TRANSLATED_W :
+                                                  rv_iommu::UNTRANSLATED_W;
                     // AxPROT[0] indicates privileged transaction when set
                     trans_req_data_n.priv       = aw_data.prot[0];
                     trans_req_data_n.is_debug   = 1'b0;

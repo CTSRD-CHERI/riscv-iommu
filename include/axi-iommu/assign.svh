@@ -43,7 +43,11 @@
   __opt_as __lhs``__lhs_sep``user         = __rhs``__rhs_sep``user;         \
   __opt_as __lhs``__lhs_sep``stream_id    = __rhs``__rhs_sep``stream_id;    \
   __opt_as __lhs``__lhs_sep``ss_id_valid  = __rhs``__rhs_sep``ss_id_valid;  \
-  __opt_as __lhs``__lhs_sep``substream_id = __rhs``__rhs_sep``substream_id;
+  __opt_as __lhs``__lhs_sep``substream_id = __rhs``__rhs_sep``substream_id; \
+  __opt_as __lhs``__lhs_sep``mmu_flow     = __rhs``__rhs_sep``mmu_flow;     \
+  __opt_as __lhs``__lhs_sep``mmu_atst     = __rhs``__rhs_sep``mmu_atst;     \
+  __opt_as __lhs``__lhs_sep``mmu_valid    = __rhs``__rhs_sep``mmu_valid;    \
+  __opt_as __lhs``__lhs_sep``mmu_secsid   = __rhs``__rhs_sep``mmu_secsid;
 `define __AXI_TO_AR_EXT(__opt_as, __lhs, __lhs_sep, __rhs, __rhs_sep)       \
   __opt_as __lhs``__lhs_sep``id           = __rhs``__rhs_sep``id;           \
   __opt_as __lhs``__lhs_sep``addr         = __rhs``__rhs_sep``addr;         \
@@ -58,7 +62,11 @@
   __opt_as __lhs``__lhs_sep``user         = __rhs``__rhs_sep``user;         \
   __opt_as __lhs``__lhs_sep``stream_id    = __rhs``__rhs_sep``stream_id;    \
   __opt_as __lhs``__lhs_sep``ss_id_valid  = __rhs``__rhs_sep``ss_id_valid;  \
-  __opt_as __lhs``__lhs_sep``substream_id = __rhs``__rhs_sep``substream_id;
+  __opt_as __lhs``__lhs_sep``substream_id = __rhs``__rhs_sep``substream_id; \
+  __opt_as __lhs``__lhs_sep``mmu_flow     = __rhs``__rhs_sep``mmu_flow;     \
+  __opt_as __lhs``__lhs_sep``mmu_atst     = __rhs``__rhs_sep``mmu_atst;     \
+  __opt_as __lhs``__lhs_sep``mmu_valid    = __rhs``__rhs_sep``mmu_valid;    \
+  __opt_as __lhs``__lhs_sep``mmu_secsid   = __rhs``__rhs_sep``mmu_secsid;
 `define __AXI_TO_REQ_EXT(__opt_as, __lhs, __lhs_sep, __rhs, __rhs_sep)  \
   `__AXI_TO_AW_EXT(__opt_as, __lhs.aw, __lhs_sep, __rhs.aw, __rhs_sep)  \
   __opt_as __lhs.aw_valid = __rhs.aw_valid;                             \

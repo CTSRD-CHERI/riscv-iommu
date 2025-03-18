@@ -27,6 +27,7 @@
 module pcie_ats_vip
   import rv_iommu_dti_ats_pkg::*;
   import pcie_ats_vip_pkg::*;
+  import rv_iommu_tb_defs::*;
 #(
   parameter int unsigned DATA_WIDTH = 160,
   parameter int unsigned ID_WIDTH   = 1,

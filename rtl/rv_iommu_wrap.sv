@@ -46,6 +46,8 @@ module rv_iommu_wrap #(
         AxiIdWidth          : 32'd4,
         AxiProgIdWidth      : 32'd6,
         AxiUserWidth        : 32'd1,
+        AxiProIdWidth       : 32'd20,
+        AxiDevIdWidth       : 32'd24,
         AxisDataWidth       : 32'd160,
         AxisUserWidth       : 32'd1,
         AxisKeepWidth       : 32'd20,
@@ -64,6 +66,7 @@ module rv_iommu_wrap #(
     parameter type sid_t = logic [(rv_iommu::DevIdWidth-1):0],
     parameter type ssid_t = logic [(rv_iommu::ProcIdWidth-1):0],
     parameter type ssidv_t = logic,
+    parameter type mmu_flow_t = logic[1:0],
 
     parameter type tdata_t  = logic [(RVIOMMUCfg.AxisDataWidth-1):0],
     parameter type tid_t    = logic [(RVIOMMUCfg.AxisIdWidth-1  ):0],
@@ -93,8 +96,12 @@ module rv_iommu_wrap #(
     input  axi_pkg::atop_t      s_axi_tr_awatop,
     input  user_t               s_axi_tr_awuser,
     input  sid_t                s_axi_tr_aw_stream_id,
-    input  ssid_t               s_axi_tr_aw_substream_id,
     input  ssidv_t              s_axi_tr_aw_ss_id_valid,
+    input  ssid_t               s_axi_tr_aw_substream_id,
+    input  mmu_flow_t           s_axi_tr_aw_mmu_flow,
+    input  logic                s_axi_tr_aw_mmu_secsid,
+    input  logic                s_axi_tr_aw_mmu_atst,
+    input  logic                s_axi_tr_aw_mmu_valid,
 
     input  logic                s_axi_tr_wvalid,
     input  data_t               s_axi_tr_wdata,
@@ -119,6 +126,11 @@ module rv_iommu_wrap #(
     input  sid_t                s_axi_tr_ar_stream_id,
     input  ssid_t               s_axi_tr_ar_substream_id,
     input  ssidv_t              s_axi_tr_ar_ss_id_valid,
+    input  mmu_flow_t           s_axi_tr_ar_mmu_flow,
+    input  logic                s_axi_tr_ar_mmu_secsid,
+    input  logic                s_axi_tr_ar_mmu_atst,
+    input  logic                s_axi_tr_ar_mmu_valid,
+
 
     input  logic                s_axi_tr_rready,
 
@@ -374,10 +386,18 @@ module rv_iommu_wrap #(
     assign axi_iommu_tr_req.ar.stream_id = s_axi_tr_ar_stream_id;
     assign axi_iommu_tr_req.ar.substream_id = s_axi_tr_ar_substream_id;
     assign axi_iommu_tr_req.ar.ss_id_valid = s_axi_tr_ar_ss_id_valid;
+    assign axi_iommu_tr_req.ar.mmu_flow = s_axi_tr_aw_mmu_flow;
+    assign axi_iommu_tr_req.ar.mmu_atst = s_axi_tr_aw_mmu_atst;
+    assign axi_iommu_tr_req.ar.mmu_valid = s_axi_tr_aw_mmu_valid;
+    assign axi_iommu_tr_req.ar.mmu_secsid = s_axi_tr_aw_mmu_secsid;
 
     assign axi_iommu_tr_req.aw.stream_id = s_axi_tr_aw_stream_id;
     assign axi_iommu_tr_req.aw.substream_id = s_axi_tr_aw_substream_id;
     assign axi_iommu_tr_req.aw.ss_id_valid = s_axi_tr_aw_ss_id_valid;
+    assign axi_iommu_tr_req.aw.mmu_flow = s_axi_tr_aw_mmu_flow;
+    assign axi_iommu_tr_req.aw.mmu_atst = s_axi_tr_aw_mmu_atst;
+    assign axi_iommu_tr_req.aw.mmu_valid = s_axi_tr_aw_mmu_valid;
+    assign axi_iommu_tr_req.aw.mmu_secsid = s_axi_tr_aw_mmu_secsid;
 
     //--------------
     // RISC-V IOMMU

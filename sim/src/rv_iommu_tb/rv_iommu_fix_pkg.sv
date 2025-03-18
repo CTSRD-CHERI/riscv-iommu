@@ -27,6 +27,7 @@ package rv_iommu_fix_pkg;
    import rv_iommu_vip_pkg::*;
    import rv_iommu_dti_ats_pkg::*;
    import pcie_ats_vip_pkg::*;
+   import rv_iommu_tb_defs::*;
 
    // -----------------------------------------------------------------------------
    // 1) Scoreboard / Tracker Class
@@ -74,6 +75,8 @@ package rv_iommu_fix_pkg;
      parameter int unsigned AXI_ADDR_WIDTH = 64,
      parameter int unsigned AXI_ID_WIDTH   = 4,
      parameter int unsigned AXI_USER_WIDTH = 1,
+     parameter int unsigned AXI_DEVID_WIDTH = 1,
+     parameter int unsigned AXI_PROID_WIDTH = 1,
      parameter time         TestTime  = 0.75ns,
      parameter time         ApplTime  = 4.25ns
    );
@@ -84,6 +87,8 @@ package rv_iommu_fix_pkg;
        .ADDR_WIDTH (AXI_ADDR_WIDTH),
        .ID_WIDTH   (AXI_ID_WIDTH),
        .USER_WIDTH (AXI_USER_WIDTH),
+       .DevW       (AXI_DEVID_WIDTH),
+       .ProW       (AXI_PROID_WIDTH),
        .TestTime   (TestTime),
        .ApplTime   (ApplTime)
      ) iommu_agent;
@@ -119,6 +124,8 @@ package rv_iommu_fix_pkg;
           .ADDR_WIDTH (AXI_ADDR_WIDTH),
           .ID_WIDTH   (AXI_ID_WIDTH),
           .USER_WIDTH (AXI_USER_WIDTH),
+          .DevW       (AXI_DEVID_WIDTH),
+          .ProW       (AXI_PROID_WIDTH),
           .TestTime   (TestTime),
           .ApplTime   (ApplTime)
        ) iommu_agent,
@@ -141,8 +148,11 @@ package rv_iommu_fix_pkg;
 
        dti_ats_inv_req_s inv_req_array[$];
        ats_entry_t ats_entry;
+       ats_entry_t ats_tr_entry;
 
        cq_atsinval_t inval_cmd;
+
+       logic [63:0] data;
 
        // 2) Reset agents
        pcie_agent.reset();
@@ -200,6 +210,23 @@ package rv_iommu_fix_pkg;
            end
          end
        join
+
+       repeat(20) @(posedge iommu_agent.axi_tr_drv.axi.clk_i);
+
+       // 5) Issue translated transactions
+       for (int i = 0; i < NUM_TRANS_REQ; i++) begin
+          ats_tr_entry = tracker.m_db[i];
+          $display("[ENV] Sending transaction for GVA=%h", ats_tr_entry.gva);
+          iommu_agent.axi_single_write_tr(ats_tr_entry.spa << 12,64'hDEADBEEF,1,1);
+       end
+       for (int i = 0; i < NUM_TRANS_REQ; i++) begin
+          ats_tr_entry = tracker.m_db[i];
+          iommu_agent.axi_single_read_tr(ats_tr_entry.spa << 12,1'b1,1'b1, data);
+          if(data ==  64'hDEADBEEF)
+            $display("[ENV] Read correct data %x @GVA=%x with translated SPA:%x", data, ats_tr_entry.gva, ats_tr_entry.spa << 12);
+          else
+            $display("[ENV] Read wrong data %x @GVA=%x with translated SPA:%x", data, ats_tr_entry.gva, ats_tr_entry.spa << 12);
+       end
 
        repeat(20) @(posedge iommu_agent.axi_tr_drv.axi.clk_i);
 

@@ -91,6 +91,10 @@ package rv_iommu_cfg;
         int unsigned AxiProgIdWidth;
         /// AXI user width
         int unsigned AxiUserWidth;
+        /// AXI process id width
+        int unsigned AxiProIdWidth;
+        /// AXI device id width
+        int unsigned AxiDevIdWidth;
         /// AXIS Data Width
         int unsigned AxisDataWidth;
         /// AXIS Dest Width
@@ -133,6 +137,8 @@ package rv_iommu_cfg;
         AxiIdWidth          : 32'd0,
         AxiProgIdWidth      : 32'd0,
         AxiUserWidth        : 32'd0,
+        AxiDevIdWidth       : 32'd0,
+        AxiProIdWidth       : 32'd0,
         AxisDataWidth       : 32'd0,
         AxisUserWidth       : 32'd0,
         AxisKeepWidth       : 32'd0,

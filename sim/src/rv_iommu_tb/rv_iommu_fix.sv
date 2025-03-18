@@ -40,6 +40,7 @@ module rv_iommu_top_fix;
   import rv_iommu_cfg::*;
   import rv_iommu_vip_pkg::*;
   import rv_iommu_dti_ats_pkg::*;
+  import rv_iommu_tb_defs::*;
   import pcie_ats_vip_pkg::*;
   import rv_iommu_fix_pkg::*;
 
@@ -48,15 +49,16 @@ module rv_iommu_top_fix;
    // -------------------------------------------------
    localparam int unsigned REFClockPeriod = 5ns; // 200MHz
 
-   localparam type addr_t    = logic[(RVIOMMUCfg.AxiAddrWidth-1):0];
-   localparam type data_t    = logic[(RVIOMMUCfg.AxiDataWidth-1):0];
-   localparam type strb_t    = logic[((RVIOMMUCfg.AxiDataWidth/8)-1):0];
-   localparam type id_t      = logic[(RVIOMMUCfg.AxiIdWidth-1):0];
-   localparam type id_prog_t = logic[(RVIOMMUCfg.AxiProgIdWidth-1):0];
-   localparam type user_t    = logic[(RVIOMMUCfg.AxiUserWidth-1):0];
-   localparam type sid_t     = logic[(rv_iommu::DevIdWidth-1):0];
-   localparam type ssid_t    = logic[(rv_iommu::ProcIdWidth-1):0];
-   localparam type ssidv_t   = logic;
+   localparam type addr_t     = logic[(RVIOMMUCfg.AxiAddrWidth-1):0];
+   localparam type data_t     = logic[(RVIOMMUCfg.AxiDataWidth-1):0];
+   localparam type strb_t     = logic[((RVIOMMUCfg.AxiDataWidth/8)-1):0];
+   localparam type id_t       = logic[(RVIOMMUCfg.AxiIdWidth-1):0];
+   localparam type id_prog_t  = logic[(RVIOMMUCfg.AxiProgIdWidth-1):0];
+   localparam type user_t     = logic[(RVIOMMUCfg.AxiUserWidth-1):0];
+   localparam type sid_t      = logic[(rv_iommu::DevIdWidth-1):0];
+   localparam type ssid_t     = logic[(rv_iommu::ProcIdWidth-1):0];
+   localparam type ssidv_t    = logic;
+   localparam type mmu_flow_t = logic[1:0];
 
 
    // AXI Stream parameters
@@ -136,6 +138,10 @@ module rv_iommu_top_fix;
    sid_t                s_axi_tr_aw_stream_id;
    ssid_t               s_axi_tr_aw_substream_id;
    ssidv_t              s_axi_tr_aw_ss_id_valid;
+   mmu_flow_t           s_axi_tr_aw_mmu_flow;
+   logic                s_axi_tr_aw_mmu_secsid;
+   logic                s_axi_tr_aw_mmu_atst;
+   logic                s_axi_tr_aw_mmu_valid;
    logic                s_axi_tr_wvalid;
    data_t               s_axi_tr_wdata;
    strb_t               s_axi_tr_wstrb;
@@ -157,6 +163,10 @@ module rv_iommu_top_fix;
    sid_t                s_axi_tr_ar_stream_id;
    ssid_t               s_axi_tr_ar_substream_id;
    ssidv_t              s_axi_tr_ar_ss_id_valid;
+   mmu_flow_t           s_axi_tr_ar_mmu_flow;
+   logic                s_axi_tr_ar_mmu_secsid;
+   logic                s_axi_tr_ar_mmu_atst;
+   logic                s_axi_tr_ar_mmu_valid;
    logic                s_axi_tr_rready;
    logic                s_axi_tr_awready;
    logic                s_axi_tr_wready;
@@ -357,10 +367,18 @@ module rv_iommu_top_fix;
    assign s_axi_tr_ar_stream_id    = axi_iommu_tr_req.ar.stream_id;
    assign s_axi_tr_ar_substream_id = axi_iommu_tr_req.ar.substream_id;
    assign s_axi_tr_ar_ss_id_valid  = axi_iommu_tr_req.ar.ss_id_valid;
+   assign s_axi_tr_ar_mmu_flow     = axi_iommu_tr_req.ar.mmu_flow;
+   assign s_axi_tr_ar_mmu_atst     = axi_iommu_tr_req.ar.mmu_atst;
+   assign s_axi_tr_ar_mmu_secsid   = axi_iommu_tr_req.ar.mmu_secsid;
+   assign s_axi_tr_ar_mmu_valid    = axi_iommu_tr_req.ar.mmu_valid;
 
    assign s_axi_tr_aw_stream_id    = axi_iommu_tr_req.aw.stream_id;
    assign s_axi_tr_aw_substream_id = axi_iommu_tr_req.aw.substream_id;
    assign s_axi_tr_aw_ss_id_valid  = axi_iommu_tr_req.aw.ss_id_valid;
+   assign s_axi_tr_aw_mmu_flow     = axi_iommu_tr_req.aw.mmu_flow;
+   assign s_axi_tr_aw_mmu_atst     = axi_iommu_tr_req.aw.mmu_atst;
+   assign s_axi_tr_aw_mmu_secsid   = axi_iommu_tr_req.aw.mmu_secsid;
+   assign s_axi_tr_aw_mmu_valid    = axi_iommu_tr_req.aw.mmu_valid;
 
    assign mem_intf.req = mem_intf_dv.req;
    assign mem_intf.wen = mem_intf_dv.wen;
@@ -393,10 +411,12 @@ module rv_iommu_top_fix;
    // IOMMU Verification IP
    // -------------------------------------------------
    rv_iommu_vip #(
-     .DATA_WIDTH      ( RVIOMMUCfg.AxiDataWidth ),
-     .ID_WIDTH        ( RVIOMMUCfg.AxiIdWidth   ),
-     .ADDR_WIDTH      ( RVIOMMUCfg.AxiAddrWidth ),
-     .USER_WIDTH      ( RVIOMMUCfg.AxiUserWidth ),
+     .DATA_WIDTH   ( RVIOMMUCfg.AxiDataWidth  ),
+     .ID_WIDTH     ( RVIOMMUCfg.AxiIdWidth    ),
+     .ADDR_WIDTH   ( RVIOMMUCfg.AxiAddrWidth  ),
+     .USER_WIDTH   ( RVIOMMUCfg.AxiUserWidth  ),
+     .PROID_WIDTH  ( RVIOMMUCfg.AxiProIdWidth ),
+     .DEVID_WIDTH  ( RVIOMMUCfg.AxiDevIdWidth ),
      .REFClockPeriod  ( REFClockPeriod  ),
      .axi_tr_req_t    ( axi_tr_req_t    ),
      .axi_tr_resp_t   ( axi_tr_resp_t   ),
@@ -458,12 +478,22 @@ module rv_iommu_top_fix;
     .TT( 0.85*REFClockPeriod )
   ) iommu_axi_driver_t;
 
+  typedef rv_iommu_axi_test::rv_iommu_axi_driver #(
+    .AW  ( RVIOMMUCfg.AxiAddrWidth  ),
+    .DW  ( RVIOMMUCfg.AxiDataWidth  ),
+    .IW  ( RVIOMMUCfg.AxiIdWidth    ),
+    .UW  ( RVIOMMUCfg.AxiUserWidth  ),
+    .DevW( RVIOMMUCfg.AxiDevIdWidth ),
+    .ProW( RVIOMMUCfg.AxiProIdWidth ),
+    .TA  ( 0.15*REFClockPeriod ),
+    .TT  ( 0.85*REFClockPeriod )
+  ) rv_iommu_axi_ext_driver_t;
+
   pcie_stream_drv_t master_drv = new(i_pcie_vip.master_dv);
   pcie_stream_drv_t slave_drv  = new(i_pcie_vip.slave_dv);
 
-  iommu_axi_driver_t axi_tr_drv   = new(i_rv_iommu_vip.axi_tr_drv_intf_dv);
-  iommu_axi_driver_t axi_comp_drv = new(i_rv_iommu_vip.axi_comp_drv_intf_dv);
-  iommu_axi_driver_t axi_prog_drv = new(i_rv_iommu_vip.axi_prog_drv_intf_dv);
+  rv_iommu_axi_ext_driver_t axi_tr_drv   = new(i_rv_iommu_vip.axi_tr_drv_intf_dv);
+  iommu_axi_driver_t        axi_prog_drv = new(i_rv_iommu_vip.axi_prog_drv_intf_dv);
 
   // 2) Create the pcie_ats_vip_agent, passing references to the VIP module drivers
   pcie_ats_vip_agent #(
@@ -484,12 +514,13 @@ module rv_iommu_top_fix;
     .ADDR_WIDTH (RVIOMMUCfg.AxiAddrWidth),
     .ID_WIDTH   (RVIOMMUCfg.AxiIdWidth),
     .USER_WIDTH (RVIOMMUCfg.AxiUserWidth),
+    .DevW       (RVIOMMUCfg.AxiDevIdWidth),
+    .ProW       (RVIOMMUCfg.AxiProIdWidth),
     .TestTime   (0.85*REFClockPeriod),
     .ApplTime   (0.15*REFClockPeriod)
   ) iommu_agent = new(
     mem_intf_dv,
     axi_tr_drv,
-    axi_comp_drv,
     axi_prog_drv
   );
 
@@ -503,6 +534,8 @@ module rv_iommu_top_fix;
     .AXI_ADDR_WIDTH  (RVIOMMUCfg.AxiAddrWidth),
     .AXI_ID_WIDTH    (RVIOMMUCfg.AxiIdWidth),
     .AXI_USER_WIDTH  (RVIOMMUCfg.AxiUserWidth),
+    .AXI_DEVID_WIDTH (RVIOMMUCfg.AxiDevIdWidth),
+    .AXI_PROID_WIDTH (RVIOMMUCfg.AxiProIdWidth),
     .TestTime        (0.85*REFClockPeriod),
     .ApplTime        (0.15*REFClockPeriod)
   ) env = new(
