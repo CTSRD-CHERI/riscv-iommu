@@ -162,6 +162,23 @@ package rv_iommu_reg_pkg;
 
   typedef struct packed {
     struct packed {
+      logic [4:0]  q;
+    } log2sz_1;
+    struct packed {
+      logic [43:0] q;
+    } ppn;
+  } iommu_reg2hw_pqb_reg_t;
+
+  typedef struct packed {
+    logic [31:0] q;
+  } iommu_reg2hw_pqh_reg_t;
+
+  typedef struct packed {
+    logic [31:0] q;
+  } iommu_reg2hw_pqt_reg_t;
+
+  typedef struct packed {
+    struct packed {
       logic        q;
     } cqen;
     struct packed {
@@ -199,6 +216,21 @@ package rv_iommu_reg_pkg;
   typedef struct packed {
     struct packed {
       logic        q;
+    } pqen;
+    struct packed {
+      logic        q;
+    } pie;
+    struct packed {
+      logic        q;
+    } pqmf;
+    struct packed {
+      logic        q;
+    } pqof;
+  } iommu_reg2hw_pqcsr_reg_t;
+
+  typedef struct packed {
+    struct packed {
+      logic        q;
     } cip;
     struct packed {
       logic        q;
@@ -206,6 +238,9 @@ package rv_iommu_reg_pkg;
     struct packed {
       logic        q;
     } pmip;
+    struct packed {
+      logic        q;
+    } pip;
   } iommu_reg2hw_ipsr_reg_t;
 
   typedef struct packed {
@@ -299,6 +334,9 @@ package rv_iommu_reg_pkg;
     struct packed {
       logic [3:0]  q;
     } pmiv;
+    struct packed {
+      logic [3:0]  q;
+    } piv;
   } iommu_reg2hw_icvec_reg_t;
 
   typedef struct packed {
@@ -330,6 +368,11 @@ package rv_iommu_reg_pkg;
     logic [31:0] d;
     logic        de;
   } iommu_hw2reg_fqt_reg_t;
+
+  typedef struct packed {
+    logic [31:0] d;
+    logic        de;
+  } iommu_hw2reg_pqt_reg_t;
 
   typedef struct packed {
     struct packed {
@@ -381,6 +424,25 @@ package rv_iommu_reg_pkg;
     struct packed {
       logic        d;
       logic        de;
+    } pqmf;
+    struct packed {
+      logic        d;
+      logic        de;
+    } pqof;
+    struct packed {
+      logic        d;
+      logic        de;
+    } pqon;
+    struct packed {
+      logic        d;
+      logic        de;
+    } busy;
+  } iommu_hw2reg_pqcsr_reg_t;
+
+  typedef struct packed {
+    struct packed {
+      logic        d;
+      logic        de;
     } cip;
     struct packed {
       logic        d;
@@ -390,6 +452,10 @@ package rv_iommu_reg_pkg;
       logic        d;
       logic        de;
     } pmip;
+    struct packed {
+      logic        d;
+      logic        de;
+    } pip;
   } iommu_hw2reg_ipsr_reg_t;
 
   typedef struct packed {
@@ -454,8 +520,12 @@ package rv_iommu_reg_pkg;
     iommu_reg2hw_fqb_reg_t fqb; // [1570:1522]
     iommu_reg2hw_fqh_reg_t fqh; // [1521:1490]
     iommu_reg2hw_fqt_reg_t fqt; // [1489:1458]
+    iommu_reg2hw_pqb_reg_t pqb; // [1570:1522]
+    iommu_reg2hw_pqh_reg_t pqh; // [1521:1490]
+    iommu_reg2hw_pqt_reg_t pqt; // [1489:1458]
     iommu_reg2hw_cqcsr_reg_t cqcsr; // [1457:1450]
     iommu_reg2hw_fqcsr_reg_t fqcsr; // [1449:1444]
+    iommu_reg2hw_pqcsr_reg_t pqcsr; // [1449:1444]
     iommu_reg2hw_ipsr_reg_t ipsr; // [1443:1440]
     iommu_reg2hw_iocountinh_reg_t iocountinh;
     iommu_reg2hw_iohpmcycles_reg_t iohpmcycles;
@@ -473,8 +543,10 @@ package rv_iommu_reg_pkg;
   typedef struct packed {
     iommu_hw2reg_cqh_reg_t              cqh; // [1678:1646]
     iommu_hw2reg_fqt_reg_t              fqt; // [1528:1496]
+    iommu_hw2reg_pqt_reg_t              pqt; // [1528:1496]
     iommu_hw2reg_cqcsr_reg_t            cqcsr; // [1495:1480]
     iommu_hw2reg_fqcsr_reg_t            fqcsr; // [1479:1468]
+    iommu_hw2reg_pqcsr_reg_t            pqcsr; // [1479:1468]
     iommu_hw2reg_iohpmcycles_reg_t      iohpmcycles;
     iommu_hw2reg_iohpmctr_reg_t [30:0]  iohpmctr;
     iommu_hw2reg_iohpmevt_reg_t [30:0]  iohpmevt;
@@ -497,8 +569,13 @@ package rv_iommu_reg_pkg;
   parameter logic [BlockAw-1:0] IOMMU_FQB_OFFSET_H          = 12'h 2c;
   parameter logic [BlockAw-1:0] IOMMU_FQH_OFFSET            = 12'h 30;
   parameter logic [BlockAw-1:0] IOMMU_FQT_OFFSET            = 12'h 34;
+  parameter logic [BlockAw-1:0] IOMMU_PQB_OFFSET_L          = 12'h 38;
+  parameter logic [BlockAw-1:0] IOMMU_PQB_OFFSET_H          = 12'h 3c;
+  parameter logic [BlockAw-1:0] IOMMU_PQH_OFFSET            = 12'h 40;
+  parameter logic [BlockAw-1:0] IOMMU_PQT_OFFSET            = 12'h 44;
   parameter logic [BlockAw-1:0] IOMMU_CQCSR_OFFSET          = 12'h 48;
   parameter logic [BlockAw-1:0] IOMMU_FQCSR_OFFSET          = 12'h 4c;
+  parameter logic [BlockAw-1:0] IOMMU_PQCSR_OFFSET          = 12'h 50;
   parameter logic [BlockAw-1:0] IOMMU_IPSR_OFFSET           = 12'h 54;
   parameter logic [BlockAw-1:0] IOMMU_IOCNTOVF_OFFSET       = 12'h 58;
   parameter logic [BlockAw-1:0] IOMMU_IOCNTINH_OFFSET       = 12'h 5c;
@@ -522,7 +599,7 @@ package rv_iommu_reg_pkg;
   parameter logic [BlockAw-1:0] IOMMU_MSI_VEC_CTL_OFFSET    = 12'h 30c;
 
   // Register width information to check illegal writes
-  parameter logic [3:0] IOMMU_PERMIT [36] = '{
+  parameter logic [3:0] IOMMU_PERMIT [41] = '{
     4'b 1111, // IOMMU_CAPABILITIES_L
     4'b 0011, // IOMMU_CAPABILITIES_H
     4'b 0001, // IOMMU_FCTL
@@ -536,8 +613,13 @@ package rv_iommu_reg_pkg;
     4'b 0111, // IOMMU_FQB_H
     4'b 1111, // IOMMU_FQH
     4'b 1111, // IOMMU_FQT
+    4'b 1111, // IOMMU_PQB_L
+    4'b 0111, // IOMMU_PQB_H
+    4'b 1111, // IOMMU_PQH
+    4'b 1111, // IOMMU_PQT
     4'b 0111, // IOMMU_CQCSR
     4'b 0111, // IOMMU_FQCSR
+    4'b 0111, // IOMMU_PQCSR
     4'b 0001, // IOMMU_IPSR
     4'b 1111, // IOMMU_IOCNTOVF
     4'b 1111, // IOMMU_IOCNTINH
