@@ -221,7 +221,7 @@ package rv_iommu_dti_ats_pkg;
      logic [45:0] reserved_1;
      logic        bypass;
      logic [2:0]  reserved_0;
-     logic        CLX_IO;
+     logic        CXL_IO;
      logic        untrans;
      logic [7:0]  trans_id_lsb;
      logic [3:0]  s_msg_type;

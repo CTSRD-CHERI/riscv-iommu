@@ -128,9 +128,14 @@ module rv_iommu_top
         rv_iommu::mrifc_content_t   mrif_data;
         logic [2:0]                 range;
         logic                       bypass;
+        rv_iommu::cause_t           fault_code;
         logic                       x;
         logic                       w;
         logic                       r;
+        logic                       g;
+        logic                       u;
+        logic                       sum;
+        logic                       t2gpa;
     } trans_resp_data_t;
 
     // Debug response structure

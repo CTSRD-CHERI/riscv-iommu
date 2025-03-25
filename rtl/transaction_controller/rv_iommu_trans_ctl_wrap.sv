@@ -1,13 +1,13 @@
 // Copyright © 2025 Manuel Rodríguez & Zero-Day Labs, Lda.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); 
-// you may not use this file except in compliance with the License, 
-// or, at your option, the Apache License version 2.0. 
+// Licensed under the Solderpad Hardware License v 2.1 (the “License”);
+// you may not use this file except in compliance with the License,
+// or, at your option, the Apache License version 2.0.
 // You may obtain a copy of the License at https://solderpad.org/licenses/SHL-2.1/.
-// Unless required by applicable law or agreed to in writing, 
-// any work distributed under the License is distributed on an “AS IS” BASIS, 
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+// Unless required by applicable law or agreed to in writing,
+// any work distributed under the License is distributed on an “AS IS” BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and limitations under the License.
 //
 // Author: Manuel Rodríguez <manuel.cederog@gmail.com>
@@ -47,7 +47,7 @@ module rv_iommu_trans_ctl_wrap #(
     parameter type axi_comp_r_chan_t = logic,
     parameter type axi_comp_req_t = logic,
     parameter type axi_comp_resp_t = logic,
-    
+
     // Data Structures Interface data types
     parameter type axi_ds_req_t = logic,
     parameter type axi_ds_resp_t = logic
@@ -85,7 +85,7 @@ module rv_iommu_trans_ctl_wrap #(
     output logic in_flight_o
 );
 
-    typedef enum logic [2:0] { 
+    typedef enum logic [2:0] {
         IDLE        = 3'b000,
         REQ_TRANS   = 3'b001,
         AWAIT_RESP  = 3'b010,
@@ -172,7 +172,7 @@ module rv_iommu_trans_ctl_wrap #(
     logic w_cnt_ovf;
 
     assign w_ready = (w_cnt_q != '0) ? (axi_comp_resp.w_ready) : (1'b0);
-    
+
     stream_fifo #(
         .DEPTH(RVIOMMUCfg.WFifoDepth),
         .T    (axi_tr_w_chan_t)
@@ -241,7 +241,7 @@ module rv_iommu_trans_ctl_wrap #(
                 check_length    = aw_data.len;
                 check_nbytes    = aw_data.size;
             end
-            
+
             else begin
                 check_iova      = ar_data.addr;
                 check_burst     = ar_data.burst;
@@ -351,7 +351,7 @@ module rv_iommu_trans_ctl_wrap #(
         logic [1:0] slv_idx;
 
         always_comb begin : slave_selection_mrif
-            
+
             // Translation Error. Connect to Error Slave
             if (trans_resp_data_q.error) begin
                 slv_idx = 2'b00;
@@ -462,11 +462,11 @@ module rv_iommu_trans_ctl_wrap #(
             .w_data_i           (w_data),
             .w_valid_i          (w_valid),
             .w_ready_i          (w_ready),
-            
+
             .fault_valid_o      (mrif_fault_valid_o),
             .fault_ready_i      (mrif_fault_ready_i),
             .fault_data_o       (mrif_fault_data_o),
-            
+
             .mem_resp_i         (mrif_axi_resp_i),
             .mem_req_o          (mrif_axi_req_o)
         );
@@ -479,7 +479,7 @@ module rv_iommu_trans_ctl_wrap #(
         logic slv_idx;
 
         always_comb begin : slave_selection_no_mrif
-            
+
             // Translation Error. Connect to Error Slave
             if (trans_resp_data_q.error) begin
                 slv_idx = 1'b0;
@@ -555,15 +555,15 @@ module rv_iommu_trans_ctl_wrap #(
     // Transaction Control
     //---------------------
     always_comb begin : transaction_ctl_comb
-        
+
         // Default values
         trans_req_valid_o   = 1'b0;
         trans_req_data_o    = trans_req_data_q;
         trans_resp_ready_o  = 1'b0;
 
-        state_n             = state_q;
-        trans_req_data_n    = trans_req_data_q;
-        trans_resp_data_n   = trans_resp_data_q;
+        state_n           = state_q;
+        trans_req_data_n  = trans_req_data_q;
+        trans_resp_data_n = trans_resp_data_q;
 
         aw_ready            = 1'b0;
         ar_ready            = 1'b0;
@@ -649,7 +649,7 @@ module rv_iommu_trans_ctl_wrap #(
                 // Translation finished
                 if (trans_resp_valid_i) begin
                     trans_resp_data_n   = trans_resp_data_i;
-                    state_n             = (trans_resp_data_i.is_mrif && 
+                    state_n             = (trans_resp_data_i.is_mrif &&
                                            !trans_resp_data_i.error) ? (MRIF) : (COMPLETE);
                 end
             end
@@ -697,5 +697,5 @@ module rv_iommu_trans_ctl_wrap #(
             trans_resp_data_q   <= trans_resp_data_n;
         end
     end
-    
+
 endmodule

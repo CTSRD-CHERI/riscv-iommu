@@ -1,13 +1,13 @@
 // Copyright © 2025 Manuel Rodríguez & Zero-Day Labs, Lda.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); 
-// you may not use this file except in compliance with the License, 
-// or, at your option, the Apache License version 2.0. 
+// Licensed under the Solderpad Hardware License v 2.1 (the “License”);
+// you may not use this file except in compliance with the License,
+// or, at your option, the Apache License version 2.0.
 // You may obtain a copy of the License at https://solderpad.org/licenses/SHL-2.1/.
-// Unless required by applicable law or agreed to in writing, 
-// any work distributed under the License is distributed on an “AS IS” BASIS, 
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+// Unless required by applicable law or agreed to in writing,
+// any work distributed under the License is distributed on an “AS IS” BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and limitations under the License.
 //
 // Author: Manuel Rodríguez <manuel.cederog@gmail.com>
@@ -117,7 +117,7 @@ module rv_iommu_tl_wrap
     localparam int unsigned PLEN = RVIOMMUCfg.PAddrWidth;
     localparam int unsigned PPNW = PLEN-12;
 
-    typedef enum logic [2:0] { 
+    typedef enum logic [2:0] {
         IDLE        = 3'b000,
         DDT         = 3'b001,
         PDT         = 3'b010,
@@ -192,6 +192,10 @@ module rv_iommu_tl_wrap
     logic               r_q,            r_n;
     logic               w_q,            w_n;
     logic               x_q,            x_n;
+    logic               u_q,            u_n;
+    logic               g_q,            g_n;
+    logic               sum_q,          sum_n;
+    logic               t2gpa_q,        t2gpa_n;
     logic               bypass_q,       bypass_n;
     logic [2:0]         range_q,        range_n;
 
@@ -218,13 +222,13 @@ module rv_iommu_tl_wrap
     rv_iommu::gscid_t               iotlb_lu_gscid;
     logic                           iotlb_lu_hit;
     rv_iommu::iotlb_content_t       iotlb_lu_content;
-    rv_iommu::iotlb_up_t            ptw_iotlb_update, msi_iotlb_update;    
+    rv_iommu::iotlb_up_t            ptw_iotlb_update, msi_iotlb_update;
     rv_iommu::iotlb_up_t            iotlb_update;
     assign iotlb_lu         = (state_q == PT) | (state_q == MSI);
     assign iotlb_lu_vpn     = req_data.iova[rv_iommu::GPLEN39-1:12];
     assign iotlb_lu_pscid   = pscid_q;
     assign iotlb_lu_gscid   = gscid_q;
-    assign iotlb_update     = (msi_iotlb_update.update) ? 
+    assign iotlb_update     = (msi_iotlb_update.update) ?
                               (msi_iotlb_update) :
                               (ptw_iotlb_update);
 
@@ -280,9 +284,9 @@ module rv_iommu_tl_wrap
     assign is_pcie_page_req = (req_data.ttype == rv_iommu::PCIE_MSG_REQ);
     // To check whether the process_id is wider than supported
     logic pid_invalid;
-    assign pid_invalid = (((ddtc_dc.fsc.mode == 4'b0001) & 
+    assign pid_invalid = (((ddtc_dc.fsc.mode == 4'b0001) &
                            (|req_data.pid[19:8])) |
-                          ((ddtc_dc.fsc.mode == 4'b0010) & 
+                          ((ddtc_dc.fsc.mode == 4'b0010) &
                            (|req_data.pid[19:17])));
     // If DC.tc.DPE is 1 and no valid process_id is given by the device, default value of zero is used
     rv_iommu::process_id_t process_id;
@@ -298,7 +302,7 @@ module rv_iommu_tl_wrap
     // Error Signals
     //---------------
     logic [(rv_iommu::GPPNW39-1):0] iotlb_bad_gppn;
-    assign iotlb_bad_gppn = rv_iommu::make_gppn(en_1S_q, 
+    assign iotlb_bad_gppn = rv_iommu::make_gppn(en_1S_q,
                                           iotlb_lu_content.content_1S.is_1G,
                                           iotlb_lu_content.content_1S.is_2M,
                                           req_data.iova[(rv_iommu::VLEN39-1):12],
@@ -342,9 +346,14 @@ module rv_iommu_tl_wrap
     assign trans_resp_data_o.mrif_data  = mrif_q;
     assign trans_resp_data_o.range      = range_q;
     assign trans_resp_data_o.bypass     = bypass_q;
+    assign trans_resp_data_o.fault_code = error_code_q;
     assign trans_resp_data_o.w          = w_q;
     assign trans_resp_data_o.r          = r_q;
     assign trans_resp_data_o.x          = x_q;
+    assign trans_resp_data_o.sum        = sum_q;
+    assign trans_resp_data_o.g          = g_q;
+    assign trans_resp_data_o.u          = u_q;
+    assign trans_resp_data_o.t2gpa      = t2gpa_q;
 
     //----------------------
     // ATS Translation response
@@ -356,9 +365,14 @@ module rv_iommu_tl_wrap
     assign ats_trans_resp_data_o.mrif_data  = mrif_q;
     assign ats_trans_resp_data_o.range      = range_q;
     assign ats_trans_resp_data_o.bypass     = bypass_q;
+    assign ats_trans_resp_data_o.fault_code = error_code_q;
     assign ats_trans_resp_data_o.w          = w_q;
     assign ats_trans_resp_data_o.r          = r_q;
     assign ats_trans_resp_data_o.x          = x_q;
+    assign ats_trans_resp_data_o.sum        = sum_q;
+    assign ats_trans_resp_data_o.g          = g_q;
+    assign ats_trans_resp_data_o.u          = u_q;
+    assign ats_trans_resp_data_o.t2gpa      = t2gpa_q;
 
     //------------------------------
     // Device Directory Table Cache
@@ -439,7 +453,7 @@ module rv_iommu_tl_wrap
         assign pdtw_pdt_ppn = ptw_iotlb_update.content.content_2S.ppn;
 
         rv_iommu::pdtc_up_t pdtc_update;
-        
+
         //-------------------------------
         // Process Directory Table Cache
         //-------------------------------
@@ -613,10 +627,10 @@ module rv_iommu_tl_wrap
 
             rv_iommu::mrifc_up_t mrifc_update;
 
-            assign iova_is_msi  =   (ddtc_dc.msiptp.mode != 4'b0000) & (is_store) & 
-                                    ((req_data.iova[rv_iommu::VLEN39-1:12] & 
-                                        ~ddtc_dc.msi_addr_mask.mask[rv_iommu::VPNW39-1:0]) == 
-                                     (ddtc_dc.msi_addr_pattern.pattern[rv_iommu::VPNW39-1:0] & 
+            assign iova_is_msi  =   (ddtc_dc.msiptp.mode != 4'b0000) & (is_store) &
+                                    ((req_data.iova[rv_iommu::VLEN39-1:12] &
+                                        ~ddtc_dc.msi_addr_mask.mask[rv_iommu::VPNW39-1:0]) ==
+                                     (ddtc_dc.msi_addr_pattern.pattern[rv_iommu::VPNW39-1:0] &
                                         ~ddtc_dc.msi_addr_mask.mask[rv_iommu::VPNW39-1:0]));
             assign msi_enabled  = (dc_q.msiptp.mode != 4'b0000);
             assign msi_mask     = dc_q.msi_addr_mask.mask[rv_iommu::GPPNW39-1:0];
@@ -674,7 +688,7 @@ module rv_iommu_tl_wrap
                 assign mrifc_lu_vpn     = req_data.iova[rv_iommu::GPLEN39-1:12];
                 assign mrifc_lu_pscid   = pscid_q;
                 assign mrifc_lu_gscid   = gscid_q;
-            
+
                 //--------------------------------------
                 // Memory-Resident Interrupt File Cache
                 //--------------------------------------
@@ -709,7 +723,7 @@ module rv_iommu_tl_wrap
 
         // MSI Translation Disabled
         else begin : gen_msi_support_tl_disabled
-            
+
             assign iova_is_msi      = 1'b0;
 
             assign msi_enabled      = 1'b0;
@@ -777,6 +791,10 @@ module rv_iommu_tl_wrap
         x_n             = x_q;
         w_n             = w_q;
         r_n             = r_q;
+        u_n             = u_q;
+        g_n             = g_q;
+        t2gpa_n         = t2gpa_q;
+        sum_n           = sum_q;
 
         unique case (state_q)
 
@@ -800,26 +818,26 @@ module rv_iommu_tl_wrap
 
                     // Signal event
                     hpm_events_o.valid = 1'b1;
-                    hpm_events_o.etype_msk = (is_translated) ? 
+                    hpm_events_o.etype_msk = (is_translated) ?
                                              (rv_iommu::hpm_etype_mask_t'(1) << rv_iommu::T_REQ) :
                                              ((is_pcie_ats_req) ?
                                               (rv_iommu::hpm_etype_mask_t'(1) << rv_iommu::ATS_REQ) :
                                               (rv_iommu::hpm_etype_mask_t'(1) << rv_iommu::UT_REQ));
                     hpm_events_o.filters.gscid_v    = 1'b0;
                     hpm_events_o.filters.pscid_v    = 1'b0;
-                    
-                    // From Spec: 
+
+                    // From Spec:
                     // If ddtp.iommu_mode == Off then stop and report "All inbound transactions disallowed" (cause = 256).
                     if (ddtp_i.iommu_mode.q == 4'b0000) begin
                         state_n         = ERROR;
                         error_code_n    = rv_iommu::ALL_INB_TRANSACTIONS_DISALLOWED;
                     end
 
-                    // From Spec: 
-                    // If ddtp.iommu_mode == Bare and any of the following conditions (*) hold 
+                    // From Spec:
+                    // If ddtp.iommu_mode == Bare and any of the following conditions (*) hold
                     // then stop and report "Transaction type disallowed" (cause = 260).
                     else if (ddtp_i.iommu_mode.q == 4'b0001) begin
-                        
+
                         // (*) If the transaction is a translated request or a PCIe ATS request
                         if (is_translated || is_pcie_ats_req) begin
                             state_n = ERROR;
@@ -828,10 +846,10 @@ module rv_iommu_tl_wrap
                         // else the translation process is completed with the IOVA as the translated address
                     end
 
-                    // From Spec: 
-                    // If the device_id is wider than supported by the IOMMU, then stop 
+                    // From Spec:
+                    // If the device_id is wider than supported by the IOMMU, then stop
                     // and report "Transaction type disallowed" (cause = 260).
-                    else if ((ddtp_i.iommu_mode.q == 4'b0011 && (|req_data.did[23:15])) || 
+                    else if ((ddtp_i.iommu_mode.q == 4'b0011 && (|req_data.did[23:15])) ||
                                 (ddtp_i.iommu_mode.q == 4'b0010 && (|req_data.did[23:6]))) begin
                         state_n = ERROR;
                     end
@@ -855,11 +873,11 @@ module rv_iommu_tl_wrap
                 hpm_events_o.filters.gscid_v    = 1'b0;
                 hpm_events_o.filters.pscid_v    = 1'b0;
 
-                /* 
-                  A DDT Walk may end in: 
+                /*
+                  A DDT Walk may end in:
                     (1) Error;
                     (2) Implicit 2nd-stage translation;
-                    (3) DDTC update and hit 
+                    (3) DDTC update and hit
                 */
 
                 // (1) DDTW error
@@ -883,13 +901,13 @@ module rv_iommu_tl_wrap
                     dc_n            = ddtc_dc;
                     iova_is_msi_n   = iova_is_msi;
                     state_n         = COMPLETE;
-                    
-                    // From Spec: 
+
+                    // From Spec:
                     // If any of the following conditions hold then stop and report "Transaction type disallowed" (cause = 260).
                     //  -   Transaction type is a Translated request or is a PCIe ATS Translation request and DC.tc.EN_ATS is 0.
                     //  -   Transaction type is PCIe Page request and DC.tc.EN_ATS or DC.tc.EN_PRI is 0.
                     //  -   Transaction has a valid process_id and DC.tc.PDTV is 0.
-                    //  -   Transaction has a valid process_id and DC.tc.PDTV is 1 and the process_id is 
+                    //  -   Transaction has a valid process_id and DC.tc.PDTV is 1 and the process_id is
                     //      wider than that supported by pdtp.MODE.
                     //  -   Transaction type is not supported by the IOMMU.
                     //  -   For requests without a process_id the privilege mode must be User.
@@ -927,11 +945,11 @@ module rv_iommu_tl_wrap
 
                         // Untranslated request
                         else begin
-                            
+
                             // No Process Context associated with the device
                             if (!ddtc_dc.tc.pdtv) begin
                                 // MSI / Normal translation
-                                if ((ddtc_dc.fsc.mode != rv_iommu::ModeBare) || 
+                                if ((ddtc_dc.fsc.mode != rv_iommu::ModeBare) ||
                                     (ddtc_dc.iohgatp.mode != rv_iommu::ModeBare)) begin
                                     en_1S_n         = (ddtc_dc.fsc.mode != rv_iommu::ModeBare);
                                     en_2S_n         = (ddtc_dc.iohgatp.mode != rv_iommu::ModeBare);
@@ -939,8 +957,8 @@ module rv_iommu_tl_wrap
                                     pscid_n         = ddtc_dc.ta.pscid;
                                     iohgatp_ppn_n   = ddtc_dc.iohgatp.ppn;
                                     iosatp_ppn_n    = ddtc_dc.fsc.ppn;
-                                    state_n = (iova_is_msi && (ddtc_dc.fsc.mode == rv_iommu::ModeBare)) ? 
-                                              (MSI) : 
+                                    state_n = (iova_is_msi && (ddtc_dc.fsc.mode == rv_iommu::ModeBare)) ?
+                                              (MSI) :
                                               (PT);
                                 end
 
@@ -950,9 +968,9 @@ module rv_iommu_tl_wrap
 
                             // Process Context associated with the device
                             else begin
-                                
-                                // From Spec: 
-                                // If DC.tc.DPE is 0 and there is no process_id associated with the transaction, or if 
+
+                                // From Spec:
+                                // If DC.tc.DPE is 0 and there is no process_id associated with the transaction, or if
                                 // pdtp.MODE = Bare perform first-stage translation in Bare mode
                                 if ((!req_data.pid_valid && !ddtc_dc.tc.dpe) || (ddtc_dc.fsc.mode == 4'b0000)) begin
                                     // MSI / Normal translation
@@ -992,11 +1010,11 @@ module rv_iommu_tl_wrap
                     hpm_events_o.filters.gscid      = dc_q.iohgatp.gscid;
                     hpm_events_o.filters.pscid_v    = 1'b0;
 
-                    /* 
-                      A PDT Walk may end in: 
+                    /*
+                      A PDT Walk may end in:
                         (1) Error;
                         (2) Implicit 2nd-stage translation;
-                        (3) PDTC update and hit 
+                        (3) PDTC update and hit
                     */
 
                     // (1) PDTW error
@@ -1019,8 +1037,8 @@ module rv_iommu_tl_wrap
                     if (pdtc_lu_hit) begin
                         pc_n    = pdtc_lu_content;
                         state_n = COMPLETE;
-                    
-                        // From Spec: 
+
+                        // From Spec:
                         // Hold and stop if the transaction requests supervisor privilege but PC.ta.ENS is not set"
                         if (req_data.priv && !pdtc_lu_content.ta.ens) begin
                             state_n = (dc_q.tc.dtf) ? (COMPLETE) : (ERROR);
@@ -1028,7 +1046,7 @@ module rv_iommu_tl_wrap
 
                         else begin
                             // MSI / Normal translation
-                            if ((pdtc_lu_content.fsc.mode != rv_iommu::ModeBare) || 
+                            if ((pdtc_lu_content.fsc.mode != rv_iommu::ModeBare) ||
                                         (dc_q.iohgatp.mode != rv_iommu::ModeBare)) begin
                                 en_1S_n         = (pdtc_lu_content.fsc.mode != rv_iommu::ModeBare);
                                 en_2S_n         = (dc_q.iohgatp.mode != rv_iommu::ModeBare);
@@ -1036,8 +1054,8 @@ module rv_iommu_tl_wrap
                                 pscid_n         = pdtc_lu_content.ta.pscid;
                                 iohgatp_ppn_n   = dc_q.iohgatp.ppn;
                                 iosatp_ppn_n    = pdtc_lu_content.fsc.ppn;
-                                state_n = (iova_is_msi_q && (pdtc_lu_content.fsc.mode == rv_iommu::ModeBare)) ? 
-                                        (MSI) : 
+                                state_n = (iova_is_msi_q && (pdtc_lu_content.fsc.mode == rv_iommu::ModeBare)) ?
+                                        (MSI) :
                                         (PT);
                             end
 
@@ -1063,17 +1081,17 @@ module rv_iommu_tl_wrap
                 // Signal PT Walk if occurred
                 hpm_events_o.valid              = ~iotlb_lu_hit;
                 hpm_events_o.etype_msk          = (rv_iommu::hpm_etype_mask_t'(1) << rv_iommu::IOTLB_MISS) |
-                                                  (rv_iommu::hpm_etype_mask_t'(en_1S_q) << rv_iommu::S1_PTW) | 
+                                                  (rv_iommu::hpm_etype_mask_t'(en_1S_q) << rv_iommu::S1_PTW) |
                                                   (rv_iommu::hpm_etype_mask_t'(en_2S_q) << rv_iommu::S2_PTW);
                 hpm_events_o.filters.gscid_v    = 1'b1;
                 hpm_events_o.filters.pscid_v    = 1'b1;
 
-                /* 
-                  A Page Table Walk may end in: 
+                /*
+                  A Page Table Walk may end in:
                     (1) Error;
                     (2) Successful implicit 2nd-stage translation;
                     (3) MSI GPA;
-                    (4) IOTLB update and hit 
+                    (4) IOTLB update and hit
                 */
 
                 // (1) PTW error
@@ -1082,8 +1100,8 @@ module rv_iommu_tl_wrap
                     error_2S_int_n  = ptw_error_2S_int;
                     error_gpaddr_n  = ptw_bad_gpaddr;
                     error_code_n    = ptw_cause;
-                    state_n         = (dc_q.tc.dtf) ? 
-                                        (COMPLETE) : 
+                    state_n         = (dc_q.tc.dtf) ?
+                                        (COMPLETE) :
                                         (ERROR);
                 end
 
@@ -1105,7 +1123,7 @@ module rv_iommu_tl_wrap
                 end
 
                 // (4) IOTLB hit
-                if (iotlb_lu_hit) begin   
+                if (iotlb_lu_hit) begin
                     state_n         = COMPLETE;
                     is_superpage_n  = iotlb_lu_content.content_1S.is_2M |
                                       iotlb_lu_content.content_1S.is_1G |
@@ -1116,14 +1134,20 @@ module rv_iommu_tl_wrap
                        x_n = iotlb_lu_content.content_2S.x;
                        w_n = iotlb_lu_content.content_2S.w;
                        r_n = iotlb_lu_content.content_2S.r;
+                       g_n = iotlb_lu_content.content_2S.g;
+                       u_n = iotlb_lu_content.content_2S.u;
                     end else if(en_2S_q) begin
                        x_n = iotlb_lu_content.content_2S.x;
                        w_n = iotlb_lu_content.content_2S.w;
                        r_n = iotlb_lu_content.content_2S.r;
+                       g_n = iotlb_lu_content.content_2S.g;
+                       u_n = iotlb_lu_content.content_2S.u;
                     end else if(en_1S_q) begin
                        x_n = iotlb_lu_content.content_1S.x;
                        w_n = iotlb_lu_content.content_1S.w;
                        r_n = iotlb_lu_content.content_1S.r;
+                       g_n = iotlb_lu_content.content_1S.g;
+                       u_n = iotlb_lu_content.content_1S.u;
                     end
                     // Identity tranlsation: GVA=SPA
                     bypass_n = dc_q.iohgatp.mode == ModeBare &&
@@ -1133,6 +1157,8 @@ module rv_iommu_tl_wrap
                                iotlb_lu_content.content_1S.is_1G ?
                                3'b110 :
                                3'b000 ;
+                    sum_n    = pc_q.ta.sum;
+                    t2gpa_n  = ddtc_dc.tc.t2gpa;
 
                     /*
                         First-stage checks: A fault is generated if:
@@ -1171,21 +1197,21 @@ module rv_iommu_tl_wrap
                                 error_code_n = rv_iommu::STORE_GUEST_PAGE_FAULT;
                             else
                                 error_code_n = rv_iommu::LOAD_GUEST_PAGE_FAULT;
-                    end 
+                    end
 
                     else begin
-                        
+
                         // Start from the PPN if 2S is enabled
                         spaddr_n = {((en_2S_q) ?
-                                     (iotlb_lu_content.content_2S.ppn[PPNW-1:0]) : 
+                                     (iotlb_lu_content.content_2S.ppn[PPNW-1:0]) :
                                      (iotlb_lu_content.content_1S.ppn[PPNW-1:0])
                                     ), req_data.iova[11:0]};
 
                         // Superpages
                         if (en_1S_q && en_2S_q) begin
-                            unique case ({iotlb_lu_content.content_1S.is_2M, 
-                                           iotlb_lu_content.content_1S.is_1G, 
-                                            iotlb_lu_content.content_2S.is_2M, 
+                            unique case ({iotlb_lu_content.content_1S.is_2M,
+                                           iotlb_lu_content.content_1S.is_1G,
+                                            iotlb_lu_content.content_2S.is_2M,
                                              iotlb_lu_content.content_2S.is_1G})
 
                                 // 1-S: 4k | 2-S: 2M:   {PPN[2], PPN[1],  GPPN[0], OFF}
@@ -1203,7 +1229,7 @@ module rv_iommu_tl_wrap
 
                                 // 1-S: 2M | 2-S: 1G:   {PPN[2], GPPN[1], VPN[0],  OFF}
                                 4'b1001:    spaddr_n[29:12] = {iotlb_lu_content.content_1S.ppn[29:21], req_data.iova[20:12]};
-                                
+
                                 default:;
                                     // 1-S: 4k | 2-S: 4k:   {PPN[2], PPN[1],  PPN[0],  OFF}
                                     // 1-S: 2M | 2-S: 4k:   {PPN[2], PPN[1],  PPN[0],  OFF}
@@ -1236,12 +1262,12 @@ module rv_iommu_tl_wrap
 
                     // default
                     error_code_n    = rv_iommu::TRANS_TYPE_DISALLOWED;
-                    spaddr_n        = {iotlb_lu_content.content_2S.ppn[PPNW-1:0], 
+                    spaddr_n        = {iotlb_lu_content.content_2S.ppn[PPNW-1:0],
                                         req_data.iova[11:0]};
                     mrif_n          = mrifc_lu_content;
 
-                    /* 
-                      An MSI Page Table Walk may end in: 
+                    /*
+                      An MSI Page Table Walk may end in:
                         (1) Error;
                         (2) Ignored transaction;
                         (3) IOTLB update and hit;
@@ -1259,7 +1285,7 @@ module rv_iommu_tl_wrap
                         ignore_n    = 1'b1;
                         state_n     = COMPLETE;
                     end
-                    
+
                     // (3) MSI PTE in BT mode
                     if (iotlb_lu_hit) begin
                         state_n     = COMPLETE;
@@ -1283,11 +1309,31 @@ module rv_iommu_tl_wrap
             end
 
             ERROR: begin
-                error_n = 1'b1;
+                if(req_data.ttype == rv_iommu::PCIE_ATS_TRANS_REQ) begin
+                    if( error_code_q != INSTR_PAGE_FAULT       &&
+                        error_code_q != LOAD_PAGE_FAULT        &&
+                        error_code_q != STORE_PAGE_FAULT       &&
+                        error_code_q != INSTR_GUEST_PAGE_FAULT &&
+                        error_code_q != LOAD_GUEST_PAGE_FAULT  &&
+                        error_code_q != STORE_GUEST_PAGE_FAULT &&
+                        error_code_q != MSI_PTE_INVALID        &&
+                        error_code_q != PDT_ENTRY_INVALID) begin
 
-                fault_valid_o = 1'b1;
-                if (fault_ready_i) begin
-                    state_n = COMPLETE;
+                        error_n = 1'b1;
+                        state_n = COMPLETE;
+                    end else begin
+                        error_n = 1'b1;
+                        fault_valid_o = 1'b1;
+                        if (fault_ready_i) begin
+                            state_n = COMPLETE;
+                        end
+                    end
+                end else begin
+                    error_n = 1'b1;
+                    fault_valid_o = 1'b1;
+                    if (fault_ready_i) begin
+                        state_n = COMPLETE;
+                    end
                 end
             end
 
@@ -1326,7 +1372,7 @@ module rv_iommu_tl_wrap
     always_ff @(posedge clk_i or negedge rst_ni) begin : translation_ctl_seq
         if (!rst_ni) begin
             state_q         <= IDLE;
-        
+
             dc_q            <= '0;
             pc_q            <= '0;
             en_1S_q         <= 1'b0;
@@ -1357,11 +1403,15 @@ module rv_iommu_tl_wrap
             x_q             <= '0;
             w_q             <= '0;
             r_q             <= '0;
+            sum_q           <= '0;
+            u_q             <= '0;
+            g_q             <= '0;
+            t2gpa_q         <= '0;
         end
 
         else begin
             state_q         <= state_n;
-        
+
             dc_q            <= dc_n;
             pc_q            <= pc_n;
             en_1S_q         <= en_1S_n;
@@ -1392,6 +1442,10 @@ module rv_iommu_tl_wrap
             x_q             <= x_n;
             w_q             <= w_n;
             r_q             <= r_n;
+            u_q             <= u_n;
+            g_q             <= g_n;
+            sum_q           <= sum_n;
+            t2gpa_q         <= t2gpa_n;
         end
     end
 
