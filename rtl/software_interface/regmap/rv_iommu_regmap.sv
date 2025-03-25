@@ -3108,7 +3108,7 @@ module rv_iommu_regmap #(
   //-------------
 
   // Mandatory registers
-  for (genvar i = 0; i < 20; i++) begin
+  for (genvar i = 0; i < 25; i++) begin
     assign wr_err[i] = (addr_hit[i] & (|(IOMMU_PERMIT[i] & ~reg_be)));
   end
 
