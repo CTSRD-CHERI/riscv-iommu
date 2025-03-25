@@ -27,6 +27,7 @@ compile.tcl:
     -t rtl -t test -t vip > sim/vsim/$@
 
 init: bender update compile.tcl
+	git submodule update --init --recursive
 
 clean:
 	rm -rf sim/vsim/work

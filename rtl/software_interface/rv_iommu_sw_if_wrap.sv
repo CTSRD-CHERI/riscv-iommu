@@ -118,6 +118,11 @@ import rv_iommu_reg_pkg::*;
     assign fctl_o           = reg2hw.fctl;
     assign ddtp_o           = reg2hw.ddtp;
 
+    // for now, tie offs
+    assign hw2reg.pqt       = '0;
+    assign hw2reg.pqcsr     = '0;
+    assign hw2reg.ipsr.pip  = '0;
+
     //--------
     // Regmap
     //--------
