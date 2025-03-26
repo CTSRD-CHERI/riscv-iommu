@@ -1,13 +1,13 @@
 // Copyright © 2025 Manuel Rodríguez & Zero-Day Labs, Lda.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); 
-// you may not use this file except in compliance with the License, 
-// or, at your option, the Apache License version 2.0. 
+// Licensed under the Solderpad Hardware License v 2.1 (the “License”);
+// you may not use this file except in compliance with the License,
+// or, at your option, the Apache License version 2.0.
 // You may obtain a copy of the License at https://solderpad.org/licenses/SHL-2.1/.
-// Unless required by applicable law or agreed to in writing, 
-// any work distributed under the License is distributed on an “AS IS” BASIS, 
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+// Unless required by applicable law or agreed to in writing,
+// any work distributed under the License is distributed on an “AS IS” BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and limitations under the License.
 //
 // Author: Manuel Rodríguez <manuel.cederog@gmail.com>
@@ -18,7 +18,7 @@
 //              Contains all modules from the software interface of the RISC-V IOMMU.
 //              Register Map, HPM, CQ Handler, FQ Handler, WSI IG, MSI IG, Debug IF Controller.
 
-module rv_iommu_sw_if_wrap 
+module rv_iommu_sw_if_wrap
 import rv_iommu_reg_pkg::*;
 #(
     /// RISC-V IOMMU configuration struct
@@ -45,7 +45,7 @@ import rv_iommu_reg_pkg::*;
 ) (
     input  logic clk_i,
     input  logic rst_ni,
-    
+
     // From Prog IF
     input  iommu_reg_req_t regmap_req_i,
     output iommu_reg_rsp_t regmap_resp_o,
@@ -57,6 +57,9 @@ import rv_iommu_reg_pkg::*;
     // FQ
     output axi_req_t    fq_axi_req_o,
     input  axi_resp_t   fq_axi_resp_i,
+    // PQ
+    output axi_req_t    pq_axi_req_o,
+    input  axi_resp_t   pq_axi_resp_i,
     // MSI IG
     output axi_req_t    msi_ig_axi_req_o,
     input  axi_resp_t   msi_ig_axi_resp_i,
@@ -79,7 +82,7 @@ import rv_iommu_reg_pkg::*;
     // Cache invalidation
     output rv_iommu::iotlb_inval_t  iotinval_o,
     output rv_iommu::xdtc_inval_t   iodirinval_o,
-    
+
     // HPM events
     input rv_iommu::hpm_event_t     hpm_events_i,
 
@@ -110,18 +113,13 @@ import rv_iommu_reg_pkg::*;
 );
 
     // Register values
-    iommu_reg2hw_t reg2hw; 
+    iommu_reg2hw_t reg2hw;
     iommu_hw2reg_t hw2reg;
 
     // Register values required by translation logic
     assign capabilities_o   = reg2hw.capabilities;
     assign fctl_o           = reg2hw.fctl;
     assign ddtp_o           = reg2hw.ddtp;
-
-    // for now, tie offs
-    assign hw2reg.pqt       = '0;
-    assign hw2reg.pqcsr     = '0;
-    assign hw2reg.ipsr.pip  = '0;
 
     //--------
     // Regmap
@@ -141,7 +139,7 @@ import rv_iommu_reg_pkg::*;
 
         .reg2hw_o       (reg2hw),
         .hw2reg_i       (hw2reg),
-        
+
         .devmode_i      (1'b0),
         .in_flight_i    (in_flight_i)
     );
@@ -322,11 +320,60 @@ import rv_iommu_reg_pkg::*;
         .ipsr_fip_wen_o     (hw2reg.ipsr.fip.de),
 
         .fq_data_i          (fq_data),
-        .fq_valid_i         (fq_valid),
         .fq_ready_o         (fq_ready),
+        .fq_valid_i         (fq_valid),
 
         .mem_req_o          (fq_axi_req_o),
         .mem_resp_i         (fq_axi_resp_i)
+    );
+
+    //---------------------
+    // Page Queue Handler
+    //---------------------
+    rv_iommu_pq_handler #(
+        .RVIOMMUCfg         (RVIOMMUCfg),
+
+        .addr_t             (addr_t),
+        .paddr_t            (paddr_t),
+
+        .axi_req_t          (axi_req_t),
+        .axi_resp_t         (axi_resp_t)
+    ) i_rv_iommu_pq_handler (
+        .clk_i              (clk_i),
+        .rst_ni             (rst_ni),
+
+        .pqb_ppn_i          (reg2hw.pqb.ppn.q),
+        .pqb_size_i         (reg2hw.pqb.log2sz_1.q),
+
+        .pq_head_i          (reg2hw.pqh.q),
+        .pq_tail_i          (reg2hw.pqt.q),
+        .pq_tail_o          (hw2reg.pqt.d),
+        .pq_tail_wen_o      (hw2reg.pqt.de),
+
+        .pqcsr_en_i         (reg2hw.pqcsr.pqen.q),
+        .pqcsr_ie_i         (reg2hw.pqcsr.pie.q),
+        .pqcsr_on_o         (hw2reg.pqcsr.pqon.d),
+        .pqcsr_on_wen_o     (hw2reg.pqcsr.pqon.de),
+        .pqcsr_busy_o       (hw2reg.pqcsr.busy.d),
+        .pqcsr_busy_wen_o   (hw2reg.pqcsr.busy.de),
+
+        .pqcsr_mf_i         (reg2hw.pqcsr.pqmf.q),
+        .pqcsr_mf_o         (hw2reg.pqcsr.pqmf.d),
+        .pqcsr_mf_wen_o     (hw2reg.pqcsr.pqmf.de),
+
+        .pqcsr_of_i         (reg2hw.pqcsr.pqof.q),
+        .pqcsr_of_o         (hw2reg.pqcsr.pqof.d),
+        .pqcsr_of_wen_o     (hw2reg.pqcsr.pqof.de),
+
+        .ipsr_pip_o         (hw2reg.ipsr.pip.d),
+        .ipsr_pip_wen_o     (hw2reg.ipsr.pip.de),
+
+        .pq_data_i          (),
+        .pq_valid_i         (),
+        .pq_ready_o         (),
+
+        .mem_req_o          (pq_axi_req_o),
+        .mem_resp_i         (pq_axi_resp_i)
     );
 
     //------------------------------
@@ -507,5 +554,5 @@ import rv_iommu_reg_pkg::*;
         end : gen_dbg_if_disabled
     endgenerate
 
-    
+
 endmodule

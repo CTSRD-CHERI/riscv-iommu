@@ -481,6 +481,24 @@ package rv_iommu;
         cause_t         cause;
     } fq_record_t;
 
+    //---------------------------
+    // Page Queue Record Struct
+    //---------------------------
+    typedef struct packed {
+        logic [51:0] page_addr;
+        logic [8:0]  page_idx;
+        logic        l;
+        logic        w;
+        logic        r;
+        device_id_t  did;
+        logic [4:0]  reserved_1;
+        logic        exec;
+        logic        priv;
+        logic        pv;
+        process_id_t pid;
+        logic [11:0] reserved_0;
+    } pq_record_t;
+
     //---------------
     // HPM Event IDs
     //---------------

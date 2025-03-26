@@ -71,6 +71,7 @@ sources:
   - rtl/software_interface/regmap/rv_iommu_field.sv
   - rtl/software_interface/regmap/rv_iommu_regmap.sv
 
+  - rtl/software_interface/rv_iommu_pq_handler.sv
   - rtl/software_interface/rv_iommu_cq_handler.sv
   - rtl/software_interface/rv_iommu_dbg_if_ctl.sv
   - rtl/software_interface/rv_iommu_fault_arbiter.sv
