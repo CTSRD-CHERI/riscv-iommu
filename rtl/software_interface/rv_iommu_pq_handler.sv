@@ -74,6 +74,9 @@ module rv_iommu_pq_handler #(
     localparam int unsigned PLEN = RVIOMMUCfg.PAddrWidth;
     localparam int unsigned PPNW = PLEN-12;
 
+    assign ipsr_pip_o = '0;
+    assign ipsr_pip_wen_o = '0;
+
     // FSM States
     enum logic [1:0] {
         IDLE,

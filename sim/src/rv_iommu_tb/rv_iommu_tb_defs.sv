@@ -184,6 +184,7 @@ package rv_iommu_tb_defs;
    localparam int MemAddWidth = $clog2(MemDepth);
 
    localparam logic [31:0] COMMAND_QUEUE_BASE = 32'h00EF_0000;
+   localparam logic [31:0] PAGE_QUEUE_BASE = 32'h00D0_0000;
 
    // Command queue mapping
    // Offsets as defined by the structure layout
@@ -212,5 +213,14 @@ package rv_iommu_tb_defs;
    localparam logic [31:0] CQCSR_CQON     = 32'h0001_0000;
    // For addressing the command queue buffer (32-bit mask on the base address)
    localparam logic [31:0] CQ_PPN_MASK32  = 32'hFFFF_F000;
+
+   // Constant definitions for CQ
+   localparam logic [63:0] PQB_PPN_MASK   = 64'h3FFFFFFFFFFC00;
+   localparam logic [63:0] PQ_LOG2SZ_1    = 64'h2; // For example, log2(queue size)=1
+   localparam logic [31:0] PQCSR_CQEN     = 32'h1;
+   localparam logic [31:0] PQCSR_CIE      = 32'h2;
+   localparam logic [31:0] PQCSR_CQON     = 32'h0001_0000;
+   // For addressing the command queue buffer (32-bit mask on the base address)
+   localparam logic [31:0] PQ_PPN_MASK32  = 32'hFFFF_F000;
 
 endpackage

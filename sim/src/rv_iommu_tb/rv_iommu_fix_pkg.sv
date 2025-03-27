@@ -159,14 +159,14 @@ package rv_iommu_fix_pkg;
        iommu_agent.reset_drvs();
        $display("[ENV] ---- Reset drivers: done ----");
 
-       // Possibly do “iommu_agent.s1pt_init_hw()”, “iommu_agent.s2pt_init_hw()”, etc.
-       // to set up page tables in the background:
        iommu_agent.s1pt_init_hw();
        $display("[ENV] ---- S1PT init: done ----");
        iommu_agent.s2pt_init_hw();
        $display("[ENV] ---- S2PT init: done ----");
        iommu_agent.iommu_ddt_init_hw();
        $display("[ENV] ---- DDT init: done ----");
+       iommu_agent.iommu_pq_init();
+       $display("[ENV] ---- PQ init: done ----");
        iommu_agent.iommu_cq_init();
        $display("[ENV] ---- CQ init: done ----");
 

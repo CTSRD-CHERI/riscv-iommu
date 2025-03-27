@@ -368,8 +368,8 @@ import rv_iommu_reg_pkg::*;
         .ipsr_pip_o         (hw2reg.ipsr.pip.d),
         .ipsr_pip_wen_o     (hw2reg.ipsr.pip.de),
 
-        .pq_data_i          (),
-        .pq_valid_i         (),
+        .pq_data_i          ('0),
+        .pq_valid_i         ('0),
         .pq_ready_o         (),
 
         .mem_req_o          (pq_axi_req_o),

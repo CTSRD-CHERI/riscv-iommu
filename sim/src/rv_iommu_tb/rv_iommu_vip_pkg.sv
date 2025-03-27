@@ -203,7 +203,7 @@ package rv_iommu_vip_pkg;
        aw_beat.ax_id    = 0;
        aw_beat.ax_addr  = addr;
        aw_beat.ax_len   = 0;
-       aw_beat.ax_size  = $clog2(64/8); // 8 bytes
+       aw_beat.ax_size  = $clog2(64/8); // 4 bytes
        aw_beat.ax_burst = axi_pkg::BURST_INCR;
        aw_beat.ax_lock  = 0;
        aw_beat.ax_cache = 4'b0011;
@@ -214,7 +214,7 @@ package rv_iommu_vip_pkg;
        aw_beat.ax_user  = '0;
 
        w_beat.w_data  = addr[3:0] == 4'h4 ? {data[31:0], 32'h0} : data;
-       w_beat.w_strb  = addr[3:0] == 4'h4 ? 8'b11110000 : 8'b11111111;
+       w_beat.w_strb  = addr[3:0] == 4'h4 ? 8'b11110000 : 8'b00001111;
        w_beat.w_last    = 1'b1;
        w_beat.w_user    = '0;
 
@@ -521,7 +521,35 @@ package rv_iommu_vip_pkg;
 
      endtask
 
-     // Command queue config (like your original “iommu_cq_init”)
+     // Page Queue config
+     task automatic iommu_pq_init();
+        // Local variables for 64-bit and 32-bit data
+        logic [63:0] pqb_val;
+        logic [31:0] pqh_val;
+        logic [31:0] reg_data;
+
+        pqb_val = (((COMMAND_QUEUE_BASE >> 2) & PQB_PPN_MASK) | PQ_LOG2SZ_1);
+
+        // Program the 64-bit cqb register using two 32-bit writes.
+        axi_single_write_prog(IOMMU_PQB_ADDR, pqb_val[31:0]);
+        axi_single_write_prog(IOMMU_PQB_ADDR + 4, pqb_val[63:32]);
+
+        // Read the current command-queue head (cqh) using the programming interface.
+        axi_single_read_prog(IOMMU_PQH_ADDR, pqh_val);
+        // Set cqt (tail) equal to cqh.
+        axi_single_write_prog(IOMMU_PQT_ADDR, pqh_val);
+
+        // Enable the command queue by writing (CQCSR_CQEN | CQCSR_CIE) to cqcsr.
+        axi_single_write_prog(IOMMU_PQCSR_ADDR, (PQCSR_CQEN | PQCSR_CIE));
+
+        // Poll until the CQON bit is set in the cqcsr register.
+        do begin
+          axi_single_read_prog(IOMMU_PQCSR_ADDR, reg_data);
+          @(posedge axi_tr_drv.axi.clk_i);
+        end while ((reg_data & PQCSR_CQON) == 0);
+     endtask
+
+     // Command queue config
      task automatic iommu_cq_init();
         // Local variables for 64-bit and 32-bit data
         logic [63:0] cqb_val;
