@@ -41,7 +41,8 @@ module ats_dti_condis_cmd_fsm
   output logic [1:0]   link_status_o,
 
   // T bit support
-  output logic         t_bit_o
+  output logic         t_bit_o,
+  output logic         sup_pri_o
 );
 
 
@@ -57,6 +58,10 @@ module ats_dti_condis_cmd_fsm
    logic        sample_tokens;
 
    assign link_status_o = condis_cmd_cs;
+
+   // PRI supported
+   assign sup_pri_o = 1'b1;
+
 
    always_comb begin : condis_cmd_fsm
       // Message condis ack defaults

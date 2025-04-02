@@ -63,7 +63,7 @@ module ats_dti_inv_sync_cmd_fsm
    // ---------------------------------------------------------------
 
    logic inv_req_valid, inv_req_ready;
-   logic sync_req_valid, sync_req_ready, sync_ack_valid;
+   logic sync_req_valid, sync_req_ready;
 
    logic fifo_empty, fifo_full, fifo_pop;
    logic dn_msg_comp_ready, dn_msg_ack_ready, dn_msg_sync_ack_ready;
@@ -93,9 +93,11 @@ module ats_dti_inv_sync_cmd_fsm
      SYNC
    } commands_t;
 
-   typedef enum logic {
+   typedef enum logic [1:0] {
+     IDLE,
      SEND_CMD,
-     WAIT_READY
+     WAIT_READY,
+     RECEIVE_ACK
    } inv_sync_req_state_t;
 
    cq_atsinval_t         iommu_to_dti_inv_req;
@@ -119,7 +121,7 @@ module ats_dti_inv_sync_cmd_fsm
 
    assign dn_msg_ready_o = dn_msg_comp_ready || dn_msg_ack_ready || dn_msg_sync_ack_ready;
 
-   assign issue_sync_req = fence_i || sb_sync_req;
+   assign issue_sync_req = fence_i;
 
    assign timeout_o = inv_req_timeout || inv_comp_err || sync_ack_err;
 
@@ -351,56 +353,42 @@ module ats_dti_inv_sync_cmd_fsm
    // -------------------------------------------------------------
    always_comb begin : send_sync_req
       sync_req_valid = 1'b0;
-      sync_req_ns = SEND_CMD;
-      fence_comp_o = 1'b0;
+      sync_req_ns = sync_req_cs;
       iommu_to_pcie_sync_req = '0;
-      if(link_status_i == CONNECTED) begin
-         case(sync_req_cs)
-           SEND_CMD: begin
-              if(issue_sync_req) begin
-                 sync_req_valid = 1'b1;
-                 if(sync_req_ready && sync_req_valid) begin
-                   sync_req_ns = SEND_CMD;
-                   if(fence_i)
-                     fence_comp_o = 1'b1;
-                 end else begin
-                   sync_req_ns = WAIT_READY;
-                 end
-              end
-           end
-           WAIT_READY: begin
-              sync_req_valid = 1'b1;
-              if(sync_req_ready && sync_req_valid) begin
-                 sync_req_ns = SEND_CMD;
-                 if(fence_i)
-                   fence_comp_o = 1'b1;
-              end else begin
-                 sync_req_ns = WAIT_READY;
-              end
-           end
-           default: sync_req_ns = SEND_CMD;
-         endcase
-      end
-   end
-
-   // -------------------------------------------------------------
-   // Synchronization Acknowledge logic
-   // -------------------------------------------------------------
-   always_comb begin : receive_sync_ack
-      sync_ack_valid = 1'b0;
+      fence_comp_o = 1'b0;
       sync_ack_err = 1'b0;
       dn_msg_sync_ack_ready = 1'b0;
       if(link_status_i == CONNECTED) begin
-         if(dn_msg_valid_i &&
-            dn_msg_i[3:0] == DTI_ATS_SYNC_ACK) begin
-            dn_msg_sync_ack_ready = 1'b1;
-            sync_ack_valid = 1'b1;
-            if(pcie_to_iommu_sync_ack.error)
-              sync_ack_err = 1'b1;
-         end
+         case(sync_req_cs)
+           IDLE: begin
+              if(issue_sync_req) begin
+                 sync_req_ns = SEND_CMD;
+              end
+           end
+           SEND_CMD: begin
+              sync_req_valid = 1'b1;
+              if(sync_req_ready && sync_req_valid) begin
+                sync_req_ns = RECEIVE_ACK;
+              end else begin
+                sync_req_ns = SEND_CMD;
+              end
+           end
+          RECEIVE_ACK: begin
+              if(dn_msg_valid_i &&
+                 dn_msg_i[3:0] == DTI_ATS_SYNC_ACK) begin
+                 dn_msg_sync_ack_ready = 1'b1;
+                 fence_comp_o = 1'b1;
+                 sync_req_ns  = IDLE;
+                 if(pcie_to_iommu_sync_ack.error)
+                   sync_ack_err = 1'b1;
+              end else begin
+                 sync_req_ns = RECEIVE_ACK;
+              end
+           end
+           default: sync_req_ns = IDLE;
+         endcase
       end
    end
-
 
    ///////////////////////////
    //// Sequential Logic  ////
@@ -408,15 +396,13 @@ module ats_dti_inv_sync_cmd_fsm
 
    always_ff @(posedge clk_i or negedge rst_ni) begin : inv_sync_req_state_update
       if(~rst_ni) begin
-        inv_req_cs  = SEND_CMD;
-        sync_req_cs = SEND_CMD;
-        // Initialize the ITAG to zero
-        next_itag_q  = 5'b0;
+        inv_req_cs   <= SEND_CMD;
+        sync_req_cs  <= IDLE;
+        next_itag_q  <= 5'b0;
       end else begin
-        inv_req_cs  = inv_req_ns;
-        sync_req_cs = sync_req_ns;
-        // Initialize the ITAG to zero
-        next_itag_q  = next_itag_n;
+        inv_req_cs   <= inv_req_ns;
+        sync_req_cs  <= sync_req_ns;
+        next_itag_q  <= next_itag_n;
       end
    end
 

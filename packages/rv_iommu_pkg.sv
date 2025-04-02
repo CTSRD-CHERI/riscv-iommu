@@ -141,6 +141,18 @@ package rv_iommu;
         logic           v;
    } tc_t;
 
+   typedef struct packed {
+        logic           prpr;
+        logic           en_pri;
+        logic           en_ats;
+   } ats_tc_t;
+
+   typedef struct packed {
+        logic           pq_mem_f;
+        logic           pq_en;
+        logic           pq_of;
+   } pri_fault;
+
    // Non-leaf DDT/PDT entry (64-bits)
     typedef struct packed {
         logic [9:0] reserved_2;
@@ -382,7 +394,6 @@ package rv_iommu;
     } cq_iodir_t;
 
     // ATS INVAL
-
     typedef struct packed {
        logic [51:0] untrans_addr;
        logic        s;
@@ -398,6 +409,24 @@ package rv_iommu;
        logic [2:0]  func3;
        logic [6:0]  opcode;
     } cq_atsinval_t;
+
+    // ATS PRGR
+    typedef struct packed {
+       logic [15:0] dest_id;
+       logic [3:0]  resp;
+       logic [2:0]  reserved_3;
+       logic [8:0]  page_index;
+       logic [31:0] reserved_2;
+       logic [7:0]  dseg;
+       logic [15:0] rid;
+       logic [5:0]  reserved_1;
+       logic        dsv;
+       logic        pv;
+       logic [19:0] pid;
+       logic [1:0]  reserved_0;
+       logic [2:0]  func3;
+       logic [6:0]  opcode;
+    } cq_atsprgr_t;
 
     typedef struct packed {
       bit [7:0]   trans_id_lsb;

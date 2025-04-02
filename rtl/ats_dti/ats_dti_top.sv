@@ -28,8 +28,8 @@ module dti_ats_top
   parameter type trans_req_data_t = logic,
   parameter type trans_resp_data_t = logic
 ) (
-  input  logic      clk_i,
-  input  logic      rst_ni,
+  input logic clk_i,
+  input logic rst_ni,
 
   // AXI4-Stream Slave Interface DTI_ATS -> PCIe
   input  axis_req_t axis_req_dn_i,
@@ -40,59 +40,86 @@ module dti_ats_top
   input  axis_rsp_t axis_rsp_up_i,
 
   // Incoming Invalidation Request (from CQ)
-  input  cq_atsinval_t iommu_to_dti_inv_req_i,
-  input  logic         iommu_to_dti_inv_valid_i,
-  output logic         iommu_to_dti_inv_ready_o,
+  input cq_atsinval_t iommu_to_dti_inv_req_i,
+  input logic         iommu_to_dti_inv_valid_i,
+  output logic        iommu_to_dti_inv_ready_o,
+
+  // Fence interface
+  input  logic        ats_fence_valid_i,
+  output logic        ats_fence_ready_o,
+
+  // Timeout and inflight invalidations
+  output logic inv_to_o,
+  output logic inv_inflight_o,
 
   // Translation request towards IOMMU's trans logic
-  output trans_req_data_t  dti_to_iommu_trans_req_o,
-  output logic             dti_to_iommu_trans_valid_o,
-  input  logic             dti_to_iommu_trans_ready_i,
-
+  output trans_req_data_t dti_to_iommu_trans_req_o,
+  output logic            dti_to_iommu_trans_valid_o,
+  input  logic            dti_to_iommu_trans_ready_i,
 
   // Translation response from IOMMU
   input  trans_resp_data_t iommu_to_dti_trans_resp_i,
   input  logic             iommu_to_dti_trans_valid_i,
   output logic             iommu_to_dti_trans_ready_o,
 
-  // Timeout and inflight invalidations
-  output logic             inv_to_o,
-  output logic             inv_inflight_o
+  // Forward PAGE_REQ toward IOMMU
+  output pq_record_t dti_to_iommu_page_req_o,
+  output logic       dti_to_iommu_page_valid_o,
+  input  logic       dti_to_iommu_page_ready_i,
+  input  pri_fault   dti_to_iommu_page_fault_i,
+
+  // Page request interface to DDTC
+  output device_id_t ats_ddtc_did_o,
+  output logic       ats_ddtc_valid_o,
+  input  ats_tc_t    ats_ddtc_tc_i,
+  input  logic       ats_ddtc_ready_i,
+
+  input logic [3:0]  ddtp_iommu_mode_i,
+
+  input logic [31:0] pq_head_i,
+  input logic [31:0] pq_tail_i,
+
+  // Return PAGE_RESP from Command Queue
+  input  cq_atsprgr_t iommu_to_dti_page_resp_i,
+  input  logic        iommu_to_dti_page_valid_i,
+  output logic        iommu_to_dti_page_ready_o
+
 );
 
   /////////////////////////////
   //// Parameters and Defs ////
   /////////////////////////////
 
-   localparam int NUM_CMD = 3;
+   localparam int NUM_CMD = 4;
 
    typedef enum logic [1:0] {
      CONDIS,
      INV,
-     TRANS
+     TRANS,
+     PAGE
    } commands_t;
 
    dti_payload_s dn_msg, up_msg,
                  up_msg_condis,
                  up_msg_inv,
-                 up_msg_trans;
+                 up_msg_trans,
+                 up_msg_page;
 
    logic up_msg_valid, up_msg_ready;
 
-   dti_payload_s [NUM_CMD-1:0] up_msg_arb;
    logic [NUM_CMD-1:0] up_msg_valid_arb, up_msg_ready_arb;
 
    logic up_msg_condis_ready, up_msg_condis_valid;
    logic up_msg_inv_ready, up_msg_inv_valid;
-
    logic up_msg_trans_ready, up_msg_trans_valid;
+   logic up_msg_page_ready, up_msg_page_valid;
 
    logic dn_msg_valid, dn_msg_ready;
    logic dn_msg_condis_ready, dn_msg_inv_ready;
-
    logic dn_msg_trans_ready;
+   logic dn_msg_page_ready;
 
-   condis_cmd_state_e link_status;
+   logic sup_pri;
 
    logic [3:0]  granted_inv_tok;
    logic [11:0] granted_trans_tok;
@@ -101,21 +128,31 @@ module dti_ats_top
 
    logic        t_bit;
 
+   dti_payload_s [NUM_CMD-1:0] up_msg_arb;
+   condis_cmd_state_e          link_status;
+   cause_t                     ats_ddtc_fault;
+
+   assign ats_ddtc_fault = iommu_to_dti_trans_resp_i.fault_code;
+
    assign dn_msg_ready = dn_msg_condis_ready ||
                          dn_msg_inv_ready    ||
-                         dn_msg_trans_ready;
+                         dn_msg_trans_ready  ||
+                         dn_msg_page_ready;
 
    assign up_msg_arb[CONDIS]       = up_msg_condis;
    assign up_msg_arb[INV]          = up_msg_inv;
    assign up_msg_arb[TRANS]        = up_msg_trans;
+   assign up_msg_arb[PAGE]         = up_msg_page;
 
    assign up_msg_valid_arb[CONDIS] = up_msg_condis_valid;
    assign up_msg_valid_arb[INV]    = up_msg_inv_valid;
    assign up_msg_valid_arb[TRANS]  = up_msg_trans_valid;
+   assign up_msg_valid_arb[PAGE]   = up_msg_page_valid;
 
    assign up_msg_condis_ready      = up_msg_ready_arb[CONDIS];
    assign up_msg_inv_ready         = up_msg_ready_arb[INV];
    assign up_msg_trans_ready       = up_msg_ready_arb[TRANS];
+   assign up_msg_page_ready        = up_msg_ready_arb[PAGE];
 
    /////////////////////////
    //// Transport layer ////
@@ -162,7 +199,7 @@ module dti_ats_top
       .DATA_T  ( dti_payload_s ),
       .N_INP   ( NUM_CMD       ),
       .ARBITER ( "rr"          )
-   ) i_inv_sync_req_arb (
+   ) i_ats_top_arb (
       .clk_i       ( clk_i            ),
       .rst_ni      ( rst_ni           ),
 
@@ -200,7 +237,8 @@ module dti_ats_top
      .granted_inv_tok_o   ( granted_inv_tok   ),
      .granted_trans_tok_o ( granted_trans_tok ),
      // T bit
-     .t_bit_o             ( t_bit )
+     .t_bit_o             ( t_bit   ),
+     .sup_pri_o           ( sup_pri )
    );
 
    // ---------------------------------------------------------------
@@ -209,20 +247,20 @@ module dti_ats_top
    ats_dti_inv_sync_cmd_fsm #(
      .MAX_TOKENS     ( MAX_INV_TOKENS       )
    ) i_inv_sync_fsm (
-     .clk_i          ( clk_i            ),
-     .rst_ni         ( rst_ni           ),
-     .freq_i         ( frequency        ),
+     .clk_i          ( clk_i             ),
+     .rst_ni         ( rst_ni            ),
+     .freq_i         ( frequency         ),
      // IOMMU IFENCE command
-     .fence_i        ( 1'b0             ), //TBD
-     .fence_comp_o   (                  ), //TBD
+     .fence_i        ( ats_fence_valid_i ),
+     .fence_comp_o   ( ats_fence_ready_o ),
      // Upstream traffic
-     .up_msg_o       ( up_msg_inv       ),
-     .up_msg_valid_o ( up_msg_inv_valid ),
-     .up_msg_ready_i ( up_msg_inv_ready ),
+     .up_msg_o       ( up_msg_inv        ),
+     .up_msg_valid_o ( up_msg_inv_valid  ),
+     .up_msg_ready_i ( up_msg_inv_ready  ),
      // Upstream traffic
-     .dn_msg_i       ( dn_msg           ),
-     .dn_msg_valid_i ( dn_msg_valid     ),
-     .dn_msg_ready_o ( dn_msg_inv_ready ),
+     .dn_msg_i       ( dn_msg            ),
+     .dn_msg_valid_i ( dn_msg_valid      ),
+     .dn_msg_ready_o ( dn_msg_inv_ready  ),
      // Upstream traffic
      .iommu_to_dti_inv_req_i   ( iommu_to_dti_inv_req_i   ),
      .iommu_to_dti_inv_valid_i ( iommu_to_dti_inv_valid_i ),
@@ -270,7 +308,42 @@ module dti_ats_top
    );
 
    // ---------------------------------------------------------------
-   // Page Request Message Handler: TODO
+   // Page Request Message Handler
    // ---------------------------------------------------------------
+   ats_dti_page_req_cmd_fsm i_page_req_fsm (
+     .clk_i          ( clk_i            ),
+     .rst_ni         ( rst_ni           ),
+     // Upstream traffic
+     .up_msg_o       ( up_msg_page       ),
+     .up_msg_valid_o ( up_msg_page_valid ),
+     .up_msg_ready_i ( up_msg_page_ready ),
+     // Upstream traffic
+     .dn_msg_i       ( dn_msg             ),
+     .dn_msg_valid_i ( dn_msg_valid       ),
+     .dn_msg_ready_o ( dn_msg_page_ready ),
+     // Translation request towards IOMMU
+     .dti_to_iommu_page_req_o   ( dti_to_iommu_page_req_o   ),
+     .dti_to_iommu_page_valid_o ( dti_to_iommu_page_valid_o ),
+     .dti_to_iommu_page_ready_i ( dti_to_iommu_page_ready_i ),
+     .dti_to_iommu_page_fault_i ( dti_to_iommu_page_fault_i ),
+     // Translation response from IOMMU
+     .iommu_to_dti_page_resp_i  ( iommu_to_dti_page_resp_i  ),
+     .iommu_to_dti_page_valid_i ( iommu_to_dti_page_valid_i ),
+     .iommu_to_dti_page_ready_o ( iommu_to_dti_page_ready_o ),
+    // DDT interface
+     .ats_ddtc_did_o    ( ats_ddtc_did_o    ),
+     .ats_ddtc_valid_o  ( ats_ddtc_valid_o  ),
+     .ats_ddtc_tc_i     ( ats_ddtc_tc_i     ),
+     .ats_ddtc_ready_i  ( ats_ddtc_ready_i  ),
+     .ats_ddtc_fault_i  ( ats_ddtc_fault    ),
+     .ddtp_iommu_mode_i ( ddtp_iommu_mode_i ),
+
+     .pq_tail_i         ( pq_tail_i         ),
+     .pq_head_i         ( pq_head_i         ),
+     // Timeout and status signals
+     .t_bit_i           ( t_bit             ),
+     .link_status_i     ( link_status       ),
+     .sup_pri_i         ( sup_pri           )
+   );
 
  endmodule

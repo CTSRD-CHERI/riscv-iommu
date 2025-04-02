@@ -26,6 +26,11 @@ package rv_iommu_dti_ats_pkg;
   // --------------------------------------------------------------------------
 
   parameter int PAYLOAD_SIZE = 160;
+
+  localparam logic [1:0] ResponseFailure = 2'b00;
+  localparam logic [1:0] InvalidRequest  = 2'b01;
+  localparam logic [1:0] Success         = 2'b10;
+
   typedef logic [63:0] addr_t;
   typedef logic [55:0] paddr_t;
 
@@ -241,19 +246,47 @@ package rv_iommu_dti_ats_pkg;
   //// Page Request Commands ////
   ///////////////////////////////
 
-  /*
-  //Page Request Messages
   typedef struct packed {
+     logic [31:0] unused;
+     logic [51:0] addr;
+     logic [2:0]  reserved;
+     logic [8:0]  prg_index;
+     logic [31:0] sid;
+     logic [19:0] ssid;
+     logic        ssv;
+     logic        last;
+     logic        write;
+     logic        read;
+     logic        inst;
+     logic        priv;
+     logic        t;
+     logic        protocol;
+     logic [3:0]  s_msg_type;
   } dti_ats_page_req_s;
 
   typedef struct packed {
+     logic [3:0]  reserved;
+     logic [3:0]  s_msg_type;
   } dti_ats_page_ack_s;
 
-  typedef struct packed {
+  typedef struct packed{
+     logic [17:0] reserved_3;
+     logic [1:0]  resp;
+     logic [2:0]  reserved_2;
+     logic [8:0]  prg_index;
+     logic [31:0] sid;
+     logic [19:0] ssid;
+     logic        ssv;
+     logic [3:0]  reserved_1;
+     logic        t;
+     logic [1:0]  reserved_0;
+     logic [3:0]  s_msg_type;
   } dti_ats_page_resp_s;
 
   typedef struct packed {
+     logic [3:0]  reserved;
+     logic [3:0]  s_msg_type;
   } dti_ats_page_respack_s;
-  */
+
 
 endpackage

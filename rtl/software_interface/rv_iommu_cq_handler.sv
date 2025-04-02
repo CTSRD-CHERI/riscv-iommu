@@ -1,13 +1,13 @@
 // Copyright © 2025 Manuel Rodríguez & Zero-Day Labs, Lda.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 
-// Licensed under the Solderpad Hardware License v 2.1 (the “License”); 
-// you may not use this file except in compliance with the License, 
-// or, at your option, the Apache License version 2.0. 
+// Licensed under the Solderpad Hardware License v 2.1 (the “License”);
+// you may not use this file except in compliance with the License,
+// or, at your option, the Apache License version 2.0.
 // You may obtain a copy of the License at https://solderpad.org/licenses/SHL-2.1/.
-// Unless required by applicable law or agreed to in writing, 
-// any work distributed under the License is distributed on an “AS IS” BASIS, 
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+// Unless required by applicable law or agreed to in writing,
+// any work distributed under the License is distributed on an “AS IS” BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and limitations under the License.
 //
 // Author: Manuel Rodríguez <manuel.cederog@gmail.com>
@@ -18,7 +18,9 @@
 //              This module fetches, decodes and executes commands
 //              issued by software into the CQ.
 
-module rv_iommu_cq_handler #(
+module rv_iommu_cq_handler 
+  import rv_iommu::*;
+#(
     /// RISC-V IOMMU configuration struct
     parameter rv_iommu_cfg::rv_iommu_cfg_t RVIOMMUCfg = rv_iommu_cfg::NullCfg,
 
@@ -80,12 +82,20 @@ module rv_iommu_cq_handler #(
     // IOTLB Invalidation
     output rv_iommu::iotlb_inval_t      iotinval_o,
     // ATS Invalidation
-    output rv_iommu::cq_atsinval_t      atsinval_o,
-    output logic                        atsinval_valid_o,
-    input  logic                        atsinval_ready_i,
+    output cq_atsinval_t atsinval_o,
+    output logic         atsinval_valid_o,
+    input  logic         atsinval_ready_i,
 
-    input  logic                        atsinval_to_i,
-    input  logic                        atsinval_inflight_i,
+    input  logic         atsinval_to_i,
+    input  logic         atsinval_inflight_i,
+
+    output logic         ats_fence_valid_o,
+    input  logic         ats_fence_ready_i,
+
+    // Return PAGE_RESP from IOMMU
+    output cq_atsprgr_t  atsprgr_o,
+    output logic         atsprgr_valid_o,
+    input  logic         atsprgr_ready_i,
 
     // Memory Bus
     input  axi_resp_t   mem_resp_i,
@@ -122,7 +132,7 @@ module rv_iommu_cq_handler #(
     // Control busy signal to notice SW when is not possible to write to cqcsr
     logic cq_en_q, cq_en_n;
 
-    /* 
+    /*
       From Spec: When the cqon bit reads 0, the IOMMU guarantees:
         (i)  That no implicit memory accesses to the command queue are in-flight;
         (ii) The command-queue will not generate new implicit loads to the queue memory.
@@ -149,13 +159,15 @@ module rv_iommu_cq_handler #(
     rv_iommu::cq_iotinval_t cmd_iotinval;
     rv_iommu::cq_iofence_t  cmd_iofence;
     rv_iommu::cq_iodir_t    cmd_iodirinval;
-    rv_iommu::cq_iodir_t    cmd_atsinval;
+    rv_iommu::cq_atsinval_t cmd_atsinval;
+    rv_iommu::cq_atsprgr_t  cmd_atsprgr;
 
     assign cq_entry         = rv_iommu::cq_entry_t'(cmd_q);
     assign cmd_iotinval     = rv_iommu::cq_iotinval_t'(cmd_q);
     assign cmd_iofence      = rv_iommu::cq_iofence_t'(cmd_q);
     assign cmd_iodirinval   = rv_iommu::cq_iodir_t'(cmd_q);
     assign cmd_atsinval     = rv_iommu::cq_atsinval_t'(cmd_q);
+    assign cmd_atsprgr      = rv_iommu::cq_atsprgr_t'(cmd_q);
 
     //# Combinational Logic
     always_comb begin : cq_handler_comb
@@ -218,6 +230,11 @@ module rv_iommu_cq_handler #(
         cq_en_n                 = cq_en_q;
         cmd_n                   = cmd_q;
 
+        atsprgr_o               = '0;
+        atsprgr_valid_o         = 1'b0;
+
+        ats_fence_valid_o       = '0;
+
         unique case (state_q)
 
             // CQ fetch is automatically triggered when head != tail and CQ is enabled
@@ -235,7 +252,7 @@ module rv_iommu_cq_handler #(
 
                         cq_en_n = 1'b1;
                     end
-                
+
                     // New command
                     else if ((cq_tail_i & idx_mask) != cq_head_i) begin
                         cq_pptr_n = {cqb_ppn_i[PPNW-1:0], 12'b0} | ({{PLEN-32{1'b0}}, cq_head_i} << 4);
@@ -260,12 +277,12 @@ module rv_iommu_cq_handler #(
                 if (mem_resp_i.r_valid) begin
                     mem_req_o.r_ready   = 1'b1;
                     if (mem_resp_i.r.last) begin
-                        cmd_n[127:64]   = mem_resp_i.r.data[((64*1) & 
+                        cmd_n[127:64]   = mem_resp_i.r.data[((64*1) &
                                                 (RVIOMMUCfg.AxiDataWidth-1))+:64];
                         cq_head_o       = (cq_head_i + 1) & idx_mask;
                         state_n         = DECODE;
                     end
-                    else cmd_n[63:0]    = mem_resp_i.r.data[((64*0) & 
+                    else cmd_n[63:0]    = mem_resp_i.r.data[((64*0) &
                                                 (RVIOMMUCfg.AxiDataWidth-1))+:64];
 
                     // Check for AXI transmission errors
@@ -302,11 +319,11 @@ module rv_iommu_cq_handler #(
                         // From Spec:
                         // A command is determined to be illegal if a reserved bit is set to 1
                         // Setting PSCV to 1 with IOTINVAL.GVMA is illegal
-                        if ((|cmd_iotinval.reserved_1) || (|cmd_iotinval.reserved_2)                        || 
+                        if ((|cmd_iotinval.reserved_1) || (|cmd_iotinval.reserved_2)                        ||
                             (|cmd_iotinval.reserved_3) || (|cmd_iotinval.reserved_4)                        ||
                             (cmd_iotinval.func3 != rv_iommu::VMA && cmd_iotinval.func3 != rv_iommu::GVMA)   ||
                             (cmd_iotinval.func3 == rv_iommu::GVMA && cmd_iotinval.pscv)) begin
-                            
+
                             cqcsr_ill_o     = 1'b1;
                             cqcsr_ill_wen_o = 1'b1;
                             state_n         = ERROR;
@@ -358,12 +375,17 @@ module rv_iommu_cq_handler #(
                                 cqcsr_fence_wen_o   = 1'b1;
                             end
 
-                            // Wait for ATS invalidations to complete before proceeding
+                            // Wait for ATS invalidations to complete before proceeding.
                             if(atsinval_inflight_i) begin
-                               //An Invalidation timed out
-                               if(atsinval_to_i) begin
+                               ats_fence_valid_o = 1'b1;
+                               // The ATS synch request has completed.
+                               if(ats_fence_ready_i) begin
+                                  state_n = IDLE;
+                               // An Invalidation timed out.
+                               end else if(atsinval_to_i) begin
                                   cqcsr_to_o = 1'b1;
                                   cqcsr_to_wen_o = 1'b1;
+                               // Wait for invalidations to complete.
                                end else begin
                                   state_n = DECODE;
                                end
@@ -394,7 +416,7 @@ module rv_iommu_cq_handler #(
                             (cmd_iodirinval.func3 != rv_iommu::DDT && cmd_iodirinval.func3 != rv_iommu::PDT) ||
                             (cmd_iodirinval.func3 == rv_iommu::DDT && |cmd_iodirinval.pid)                   ||
                             (cmd_iodirinval.func3 == rv_iommu::PDT && !cmd_iodirinval.dv)) begin
-                            
+
                             cqcsr_ill_o     = 1'b1;
                             cqcsr_ill_wen_o = 1'b1;
                             state_n         = ERROR;
@@ -412,37 +434,38 @@ module rv_iommu_cq_handler #(
                     end
 
                     /*
-                        ATS.INVAL is now supported, but ATS.PRGR still is not supported
+                        ATS.INVAL and ATS.PRGR is now supported.
                     */
                     rv_iommu::ATS: begin
-                        // It's an ATS Invalidation command
+                        // It's an ATS Invalidation command.
                         if(cmd_atsinval.func3 == 3'b000) begin
                            atsinval_o = cmd_atsinval;
                            atsinval_valid_o = 1'b1;
                            if(~atsinval_ready_i)
                               state_n = DECODE;
-                        // It is a PRGR command, not supported yet
-                        end else begin
-                           cqcsr_ill_o     = 1'b1;
-                           cqcsr_ill_wen_o = 1'b1;
-                           state_n         = ERROR;
+                        // It is a PRGR command.
+                        end else if (cmd_atsinval.func3 == 3'b001) begin
+                           atsprgr_o = cmd_atsprgr;
+                           atsprgr_valid_o = 1'b1;
+                           if(~atsprgr_ready_i) begin
+                              state_n = DECODE;
+                           end
                         end
                     end
 
                     default: begin
                         // From Spec:
-                        // A command is determined to be illegal if it uses a reserved encoding
+                        // A command is determined to be illegal if it uses a reserved encoding.
                         cqcsr_ill_o     = 1'b1;
                         cqcsr_ill_wen_o = 1'b1;
                         state_n         = ERROR;
                     end
-                    
                 endcase
             end
 
             // Write DATA (32-bit) to ADDR[63:2] * 4
             WRITE: begin
-                
+
                 unique case (wr_state_q)
                     AW_REQ: begin
                         mem_req_o.aw_valid  = 1'b1;
@@ -484,7 +507,7 @@ module rv_iommu_cq_handler #(
     end
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
-        
+
         // Reset
         if (!rst_ni) begin
             state_q         <= IDLE;
@@ -502,5 +525,5 @@ module rv_iommu_cq_handler #(
             cq_pptr_q       <= cq_pptr_n;
         end
     end
-    
+
 endmodule

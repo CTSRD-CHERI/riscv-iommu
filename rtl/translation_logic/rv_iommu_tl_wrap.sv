@@ -77,6 +77,12 @@ module rv_iommu_tl_wrap
     output logic                ats_trans_resp_valid_o,
     input  logic                ats_trans_resp_ready_i,
 
+    // ATS Page Request related interface
+    input  logic                ats_ddtc_valid_i,
+    input  device_id_t          ats_ddtc_did_i,
+    output logic                ats_ddtc_ready_o,
+    output ats_tc_t             ats_ddtc_tc_o,
+
     // Debug IF controller response port
     output dbg_resp_t           debug_resp_data_o,
     output logic                debug_resp_valid_o,
@@ -210,8 +216,13 @@ module rv_iommu_tl_wrap
     logic                    ddtc_lu_hit;
     dc_t                     ddtc_dc;
     ddtc_up_t                ddtc_update;
-    assign ddtc_lu      = (state_q == DDT);
-    assign ddtc_lu_did  = req_data.did;
+    assign ddtc_lu          = (state_q == DDT) | ats_ddtc_valid_i;
+    assign ddtc_lu_did      = ats_ddtc_valid_i ? ats_ddtc_did_i : req_data.did;
+    assign ats_ddtc_ready_o = ~ddtc_lu_hit;
+    assign ats_ddtc_tc_o.en_pri = dc_q.tc.en_pri;
+    assign ats_ddtc_tc_o.en_ats = dc_q.tc.en_ats;
+    assign ats_ddtc_tc_o.prpr   = dc_q.tc.prpr;
+
     // PDTC
     logic                    pdtc_lu_hit;
     rv_iommu::pc_t           pdtc_lu_content;

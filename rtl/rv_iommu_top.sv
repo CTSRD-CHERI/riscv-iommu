@@ -184,6 +184,31 @@ module rv_iommu_top
     logic               debug_resp_valid;
     logic               debug_resp_ready;
 
+    logic               ats_ddtc_valid;
+    device_id_t         ats_ddtc_did;
+    logic               ats_ddtc_ready;
+    ats_tc_t            ats_ddtc_tc;
+
+    cq_atsprgr_t        atsprgr;
+    logic               atsprgr_valid;
+    logic               atsprgr_ready;
+
+    // Page input port
+    pq_record_t  pq_data;
+    logic        pq_valid;
+    logic        pq_ready;
+    pri_fault    pq_fault_data;
+
+    logic [3:0]  ddtp_iommu_mode;
+
+    // ATS Invalidation
+    rv_iommu::cq_atsinval_t atsinval;
+    logic                   atsinval_valid;
+    logic                   atsinval_ready;
+
+    logic [31:0]            pq_head;
+    logic [31:0]            pq_tail;
+
     rv_iommu_reg_pkg::iommu_reg2hw_capabilities_reg_t   capabilities;
     rv_iommu_reg_pkg::iommu_reg2hw_fctl_reg_t           fctl;
     rv_iommu_reg_pkg::iommu_reg2hw_ddtp_reg_t           ddtp;
@@ -223,10 +248,9 @@ module rv_iommu_top
 
     logic in_flight;
 
-    cq_atsinval_t atsinval;
     logic atsinval_to, atsinval_inflight;
-    logic atsinval_valid, atsinval_ready;
 
+    assign ddtp_iommu_mode = ddtp.iommu_mode;
     //-----------------------
     // Programming Interface
     //-----------------------
@@ -387,6 +411,11 @@ module rv_iommu_top
             .ats_trans_resp_valid_o (ats_trans_resp_valid),
             .ats_trans_resp_ready_i (ats_trans_resp_ready),
 
+            .ats_ddtc_valid_i       (ats_ddtc_valid ),
+            .ats_ddtc_did_i         (ats_ddtc_did   ),
+            .ats_ddtc_ready_o       (ats_ddtc_ready ),
+            .ats_ddtc_tc_o          (ats_ddtc_tc    ),
+
             .debug_resp_data_o      (debug_resp_data),
             .debug_resp_valid_o     (debug_resp_valid),
             .debug_resp_ready_i     (debug_resp_ready),
@@ -452,6 +481,11 @@ module rv_iommu_top
             .ats_trans_resp_data_o  (ats_trans_resp_data),
             .ats_trans_resp_valid_o (ats_trans_resp_valid),
             .ats_trans_resp_ready_i (ats_trans_resp_ready),
+
+            .ats_ddtc_valid_i       (ats_ddtc_valid ),
+            .ats_ddtc_did_i         (ats_ddtc_did   ),
+            .ats_ddtc_ready_o       (ats_ddtc_ready ),
+            .ats_ddtc_tc_o          (ats_ddtc_tc    ),
 
             .debug_resp_data_o      (debug_resp_data),
             .debug_resp_valid_o     (debug_resp_valid),
@@ -546,6 +580,21 @@ module rv_iommu_top
         .atsinval_to_i       (atsinval_to),
         .atsinval_inflight_i (atsinval_inflight),
 
+        .ats_fence_valid_o   (ats_fence_valid),
+        .ats_fence_ready_i   (ats_fence_ready),
+
+        .pq_head_o           (pq_head),
+        .pq_tail_o           (pq_tail),
+
+        .atsprgr_o           (atsprgr),
+        .atsprgr_valid_o     (atsprgr_valid),
+        .atsprgr_ready_i     (atsprgr_ready),
+
+        .pq_data_i          (pq_data),
+        .pq_valid_i         (pq_valid),
+        .pq_ready_o         (pq_ready),
+        .pq_data_o          (pq_fault_data),
+
         .wsi_wires_o       (wsi_wires_o)
     );
 
@@ -572,6 +621,9 @@ module rv_iommu_top
          .iommu_to_dti_inv_req_i     ( atsinval             ),
          .iommu_to_dti_inv_valid_i   ( atsinval_valid       ),
          .iommu_to_dti_inv_ready_o   ( atsinval_ready       ),
+         // Fence interface
+         .ats_fence_valid_i          ( ats_fence_valid      ),
+         .ats_fence_ready_o          ( ats_fence_ready      ),
          // DTI translation request interface
          .dti_to_iommu_trans_req_o   ( ats_trans_req_data   ),
          .dti_to_iommu_trans_valid_o ( ats_trans_req_valid  ),
@@ -582,21 +634,42 @@ module rv_iommu_top
          .iommu_to_dti_trans_ready_o ( ats_trans_resp_ready ),
          // Timeout error
          .inv_to_o                   ( atsinval_to          ),
-         .inv_inflight_o             ( atsinval_inflight    )
+         .inv_inflight_o             ( atsinval_inflight    ),
+         // Page Request interface
+         .dti_to_iommu_page_req_o    ( pq_data              ),
+         .dti_to_iommu_page_valid_o  ( pq_valid             ),
+         .dti_to_iommu_page_ready_i  ( pq_ready             ),
+         .dti_to_iommu_page_fault_i  ( pq_fault_data        ),
+         // Page Request Group Resp interface
+         .iommu_to_dti_page_resp_i   ( atsprgr              ),
+         .iommu_to_dti_page_valid_i  ( atsprgr_valid        ),
+         .iommu_to_dti_page_ready_o  ( atsprgr_ready        ),
+         // DDT interface
+         .ats_ddtc_did_o             ( ats_ddtc_did         ),
+         .ats_ddtc_valid_o           ( ats_ddtc_valid       ),
+         .ats_ddtc_tc_i              ( ats_ddtc_tc          ),
+         .ats_ddtc_ready_i           ( ats_ddtc_ready       ),
+         .ddtp_iommu_mode_i          ( ddtp_iommu_mode      ),
+         .pq_head_i                  ( pq_head              ),
+         .pq_tail_i                  ( pq_tail              )
        );
+
     end else begin
+
        assign ats_upstream_req_o    = '0;
        assign ats_downstream_resp_o = '0;
-
        assign ats_trans_req_data    = '0;
        assign ats_trans_req_valid   = '0;
        assign ats_trans_resp_ready  = '0;
-
        assign atsinval_ready        = '0;
-
        assign atsinval_to           = '0;
        assign atsinval_inflight     = '0;
-    end
+       assign ats_ddtc_did          = '0;
+       assign ats_ddtc_valid        = '0;
+       assign atsprgr_ready         = '0;
+       assign pq_data               = '0;
+       assign pq_valid              = '0;
 
+    end
 
 endmodule

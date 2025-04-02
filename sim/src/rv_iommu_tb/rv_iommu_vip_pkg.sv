@@ -580,7 +580,7 @@ package rv_iommu_vip_pkg;
      endtask
 
      // Write a 128-bit command into the command queue
-     task automatic rv_iommu_write_command_in_queue(ref cq_atsinval_t inval_i);
+     task automatic rv_iommu_write_command_in_queue(ref cq_entry_t inval_i);
         logic [31:0] cqt;
         logic [31:0] cq_entry_addr;
         // Read the current command-queue tail index (cqt)

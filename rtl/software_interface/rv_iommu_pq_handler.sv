@@ -15,7 +15,10 @@
 // Description: RISC-V IOMMU Page Queue (PQ) handler module.
 //
 
-module rv_iommu_pq_handler #(
+module rv_iommu_pq_handler
+  import rv_iommu::*;
+  import rv_iommu_dti_ats_pkg::*;
+#(
     /// RISC-V IOMMU configuration struct
     parameter rv_iommu_cfg::rv_iommu_cfg_t RVIOMMUCfg = rv_iommu_cfg::NullCfg,
 
@@ -62,9 +65,10 @@ module rv_iommu_pq_handler #(
     output logic                        ipsr_pip_wen_o,
 
     // Page input port
-    input  rv_iommu::pq_record_t        pq_data_i,
-    input  logic                        pq_valid_i,
-    output logic                        pq_ready_o,
+    input  pq_record_t  pq_data_i,
+    input  logic        pq_valid_i,
+    output logic        pq_ready_o,
+    output pri_fault    pq_data_o,
 
     // Memory Bus
     input  axi_resp_t   mem_resp_i,
@@ -129,7 +133,10 @@ module rv_iommu_pq_handler #(
 
     // While either error bit is set in pqcsr, the IOMMU discards the record
     // that led to the fault and all further fault records.
-    assign pq_ready_o = (state_q == IDLE) | (state_q == ERROR);
+    assign pq_ready_o          = (state_q == IDLE) | (state_q == ERROR);
+    assign pq_data_o.pq_mem_f  = pqcsr_mf_o;
+    assign pq_data_o.pq_en     = pqcsr_en_i && pqcsr_on_o;
+    assign pq_data_o.pq_of     = pqcsr_of_o ;
 
     // Fault Queue handler FSM
     always_comb begin : pq_handler_comb

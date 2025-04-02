@@ -211,6 +211,22 @@ package pcie_ats_vip_pkg;
        end
      endtask
 
+     // Receive N translation responses
+     task automatic dti_synch_request(ref logic inv_completed);
+        bit dummy_last;
+        dti_ats_sync_req_s local_req;
+        dti_ats_sync_ack_s local_resp;
+        while(local_req.s_msg_type != DTI_ATS_SYNC_REQ)
+          slave_drv.recv(local_req, dummy_last);
+
+        @(posedge inv_completed);
+
+        local_resp = '0;
+        local_resp.s_msg_type = DTI_ATS_SYNC_ACK;
+        $display("[PCIE_ATS_AGENT] Sync Request received... Responding with synch ack.");
+        master_drv.send(local_resp, 1'b1);
+     endtask
+
    endclass
 
 endpackage

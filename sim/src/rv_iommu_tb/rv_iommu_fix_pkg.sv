@@ -151,8 +151,13 @@ package rv_iommu_fix_pkg;
        ats_entry_t ats_tr_entry;
 
        cq_atsinval_t inval_cmd;
+       cq_iofence_t  fence_command;
+       cq_entry_t    command;
 
        logic [63:0] data;
+       logic invalidation_completed;
+
+       invalidation_completed = 1'b0;
 
        // 2) Reset agents
        pcie_agent.reset();
@@ -234,22 +239,45 @@ package rv_iommu_fix_pkg;
          // CPU side sends invalidations
          begin
             for (int i = 0; i < NUM_INV; i++) begin
-               ats_entry = tracker.get_translation();
-               inval_cmd = '0;
+               ats_entry              = tracker.get_translation();
+               inval_cmd              = '0;
                inval_cmd.rid          = 16'h1;
                inval_cmd.opcode       = ATS;
                inval_cmd.func3        = ATSINVAL;
                inval_cmd.untrans_addr = ats_entry.gva;
+               command                = cq_entry_t'(inval_cmd);
                $display("[ENV] Sending invalidation for GVA=%h => %p", inval_cmd.untrans_addr, inval_cmd);
-               iommu_agent.rv_iommu_write_command_in_queue(inval_cmd);
+               iommu_agent.rv_iommu_write_command_in_queue(command);
             end
          end
          // PCIe side receives invalidation requests
          begin
             pcie_agent.do_receive_inv_requests(NUM_INV, inv_req_array, 0);
-            $display("[ENV] Received invalidations => sending completions...");
-            pcie_agent.send_invalidation_completions(NUM_INV, inv_req_array);
          end
+       join
+
+       repeat(20) @(posedge iommu_agent.axi_tr_drv.axi.clk_i);
+
+       fork
+          begin
+             $display("[ENV] Received invalidations => sending completions...");
+             pcie_agent.send_invalidation_completions(NUM_INV, inv_req_array);
+             invalidation_completed = 1'b1;
+          end
+
+          begin
+             $display("[ENV] IOMMU Fence command: wait for Inv to complete...");
+             fence_command = '0;
+             fence_command.opcode = IOFENCE;
+             fence_command.func3 = IOFENCE_C;
+             command = cq_entry_t'(fence_command);
+             iommu_agent.rv_iommu_write_command_in_queue(command);
+          end
+
+          begin
+             $display("[ENV] Receiving Synch Request. Resolving it when Invalidations have completed");
+             pcie_agent.dti_synch_request(invalidation_completed);
+          end
        join
 
        repeat(20) @(posedge iommu_agent.axi_tr_drv.axi.clk_i);

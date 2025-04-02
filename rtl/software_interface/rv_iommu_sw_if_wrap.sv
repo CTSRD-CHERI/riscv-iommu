@@ -108,6 +108,23 @@ import rv_iommu_reg_pkg::*;
     input  logic                   atsinval_to_i,
     input  logic                   atsinval_inflight_i,
 
+    output logic                   ats_fence_valid_o,
+    input  logic                   ats_fence_ready_i,
+
+    output logic [31:0]            pq_head_o,
+    output logic [31:0]            pq_tail_o,
+
+    // Return PAGE_RESP from IOMMU
+    output rv_iommu::cq_atsprgr_t atsprgr_o,
+    output logic                  atsprgr_valid_o,
+    input  logic                  atsprgr_ready_i,
+
+    // Page input port
+    input  rv_iommu::pq_record_t   pq_data_i,
+    input  logic                   pq_valid_i,
+    output logic                   pq_ready_o,
+    output rv_iommu::pri_fault     pq_data_o,
+
     // Interrupt wires
     output logic [(RVIOMMUCfg.NumIntVec-1):0] wsi_wires_o
 );
@@ -120,6 +137,10 @@ import rv_iommu_reg_pkg::*;
     assign capabilities_o   = reg2hw.capabilities;
     assign fctl_o           = reg2hw.fctl;
     assign ddtp_o           = reg2hw.ddtp;
+
+    assign pq_tail_o = reg2hw.pqt.q;
+    assign pq_head_o = reg2hw.pqh.q;
+
 
     //--------
     // Regmap
@@ -204,6 +225,13 @@ import rv_iommu_reg_pkg::*;
 
         .atsinval_to_i       (atsinval_to_i),
         .atsinval_inflight_i (atsinval_inflight_i),
+
+        .ats_fence_valid_o   (ats_fence_valid_o),
+        .ats_fence_ready_i   (ats_fence_ready_i),
+
+        .atsprgr_o           (atsprgr_o),
+        .atsprgr_valid_o     (atsprgr_valid_o),
+        .atsprgr_ready_i     (atsprgr_ready_i),
 
         .mem_req_o           (cq_axi_req_o),
         .mem_resp_i          (cq_axi_resp_i)
@@ -368,9 +396,10 @@ import rv_iommu_reg_pkg::*;
         .ipsr_pip_o         (hw2reg.ipsr.pip.d),
         .ipsr_pip_wen_o     (hw2reg.ipsr.pip.de),
 
-        .pq_data_i          ('0),
-        .pq_valid_i         ('0),
-        .pq_ready_o         (),
+        .pq_data_i          (pq_data_i),
+        .pq_valid_i         (pq_valid_i),
+        .pq_ready_o         (pq_ready_o),
+        .pq_data_o          (pq_data_o),
 
         .mem_req_o          (pq_axi_req_o),
         .mem_resp_i         (pq_axi_resp_i)
