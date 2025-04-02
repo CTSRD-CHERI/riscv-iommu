@@ -235,6 +235,8 @@ module rv_iommu_top
     axi_ds_resp_t  cq_axi_resp;
     axi_ds_req_t   fq_axi_req;
     axi_ds_resp_t  fq_axi_resp;
+    axi_ds_req_t   pq_axi_req;
+    axi_ds_resp_t  pq_axi_resp;
     axi_ds_req_t   msi_ig_axi_req;
     axi_ds_resp_t  msi_ig_axi_resp;
 
@@ -308,6 +310,8 @@ module rv_iommu_top
         .cq_resp_o              (cq_axi_resp),
         .fq_req_i               (fq_axi_req),
         .fq_resp_o              (fq_axi_resp),
+        .pq_req_i               (pq_axi_req),
+        .pq_resp_o              (pq_axi_resp),
         .msi_ig_req_i           (msi_ig_axi_req),
         .msi_ig_resp_o          (msi_ig_axi_resp)
     );
@@ -543,6 +547,8 @@ module rv_iommu_top
         .cq_axi_resp_i     (cq_axi_resp),
         .fq_axi_req_o      (fq_axi_req),
         .fq_axi_resp_i     (fq_axi_resp),
+        .pq_axi_req_o      (pq_axi_req),
+        .pq_axi_resp_i     (pq_axi_resp),
         .msi_ig_axi_req_o  (msi_ig_axi_req),
         .msi_ig_axi_resp_i (msi_ig_axi_resp),
 
