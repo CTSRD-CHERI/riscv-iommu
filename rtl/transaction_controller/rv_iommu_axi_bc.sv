@@ -41,7 +41,7 @@ module rv_iommu_axi_bc #(
     assign fixed_faddr = (addr_i & 'hfff) + ('h1 << n_bytes_i);
 
     addr_t incr_faddr;
-    assign incr_faddr = (addr_i & 'hfff) + ((addr_t'(burst_length_i) + 1) << n_bytes_i);
+    assign incr_faddr = (addr_i & 'hfff) + ((addr_t'(burst_length_i) + 1) << (n_bytes_i - 1));
 
     logic [2:0] log2_len;
     addr_t wrap_boundary;
@@ -63,7 +63,7 @@ module rv_iommu_axi_bc #(
         wrap_boundary   = (addr_i >> (log2_len + n_bytes_i)) << (log2_len + n_bytes_i);
 
         // Highest addr_i = Wrap_Boundary + (Burst_Length x Number_Bytes)
-        wrap_faddr      = (wrap_boundary & 'hfff) + ((addr_t'(burst_length_i) + 1) << n_bytes_i);
+        wrap_faddr      = (wrap_boundary & 'hfff) + ((addr_t'(burst_length_i) + 1) << (n_bytes_i -1));
     end
 
     always_comb begin : boundary_check
