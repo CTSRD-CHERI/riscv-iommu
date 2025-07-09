@@ -95,15 +95,16 @@ sources:
   - rtl/rv_iommu_top.sv
   - rtl/rv_iommu_wrap.sv
 
-  - sim/src/rv_iommu_tb/rv_iommu_tb_defs.sv
-  - sim/src/pcie_ats_vip_pkg.sv
-  - sim/src/rv_iommu_tb/rv_iommu_axi_intf.sv
-  - sim/src/rv_iommu_tb/rv_iommu_axi_test.sv
-  - sim/src/rv_iommu_tb/mem_intf.sv
-  - sim/src/rv_iommu_tb/axi2mem.sv
-  - sim/src/rv_iommu_tb/rv_iommu_vip_pkg.sv
-  - sim/src/rv_iommu_tb/rv_iommu_fix_pkg.sv
-  - sim/src/pcie_ats_vip.sv
-  - sim/src/rv_iommu_tb/rv_iommu_vip.sv
-  - sim/src/rv_iommu_tb/rv_iommu_fix.sv
-  - sim/src/rv_iommu_tb/rv_iommu_tb.sv
+  - target: any(simulation, test)
+     - sim/src/rv_iommu_tb/rv_iommu_tb_defs.sv
+     - sim/src/pcie_ats_vip_pkg.sv
+     - sim/src/rv_iommu_tb/rv_iommu_axi_intf.sv
+     - sim/src/rv_iommu_tb/rv_iommu_axi_test.sv
+     - sim/src/rv_iommu_tb/mem_intf.sv
+     - sim/src/rv_iommu_tb/axi2mem.sv
+     - sim/src/rv_iommu_tb/rv_iommu_vip_pkg.sv
+     - sim/src/rv_iommu_tb/rv_iommu_fix_pkg.sv
+     - sim/src/pcie_ats_vip.sv
+     - sim/src/rv_iommu_tb/rv_iommu_vip.sv
+     - sim/src/rv_iommu_tb/rv_iommu_fix.sv
+     - sim/src/rv_iommu_tb/rv_iommu_tb.sv
