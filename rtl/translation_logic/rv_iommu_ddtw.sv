@@ -225,9 +225,11 @@ module rv_iommu_ddtw #(
                     
                     state_n = MEM_ACCESS;
 
-                    // 3LVL
+                    //// 3LVL
+                    //if (ddtp_i.iommu_mode.q == 4'b0100)
+                    //    ddtw_pptr_n = {ddtp_i.ppn.q[PPNW-1:0], req_did_i[23:15], 3'b0};
                     if (ddtp_i.iommu_mode.q == 4'b0100)
-                        ddtw_pptr_n = {ddtp_i.ppn.q[PPNW-1:0], req_did_i[23:15], 3'b0};
+                        ddtw_pptr_n = {ddtp_i.ppn.q[PPNW-1:0], req_did_i[23:16], 4'b0};
                     // 2LVL
                     else if (ddtp_i.iommu_mode.q == 4'b0011)
                         ddtw_pptr_n = {ddtp_i.ppn.q[PPNW-1:0], req_did_i[14:6], 3'b0};
@@ -275,13 +277,19 @@ module rv_iommu_ddtw #(
 
                     else begin
                         unique case (ddt_lvl_q)
+                            //LVL3: begin
+                            //    ddt_lvl_n = LVL2;
+                            //    ddtw_pptr_n = {nl.ppn[PPNW-1:0], req_did_i[14:6], 3'b0};
                             LVL3: begin
                                 ddt_lvl_n = LVL2;
-                                ddtw_pptr_n = {nl.ppn[PPNW-1:0], req_did_i[14:6], 3'b0};
+                                ddtw_pptr_n = {nl.ppn[PPNW-1:0], req_did_i[15:7], 3'b0};
                             end
+                            //LVL2: begin
+                            //    ddt_lvl_n = LVL1;
+                            //    ddtw_pptr_n = {nl.ppn[PPNW-1:0], req_did_i[5:0], 6'b0};
                             LVL2: begin
                                 ddt_lvl_n = LVL1;
-                                ddtw_pptr_n = {nl.ppn[PPNW-1:0], req_did_i[5:0], 6'b0};
+                                ddtw_pptr_n = {nl.ppn[PPNW-1:0], req_did_i[6:0], 5'b0};
                             end
                             default: begin
                                 state_n = ERROR;
