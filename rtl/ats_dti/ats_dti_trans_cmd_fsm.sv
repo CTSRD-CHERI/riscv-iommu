@@ -177,30 +177,30 @@ module ats_dti_trans_cmd_fsm
               dti_trans_fault.trans_id_lsb = trans_req.trans_id_lsb;
               dti_trans_fault.trans_id_msb = trans_req.trans_id_msb;
               // Handle the Fault Type according to the IOMMU Spec section 2.6
-              if(iommu_trans_resp.fault_code == INSTR_ACCESS_FAULT        ||
-                 iommu_trans_resp.fault_code == LD_ACCESS_FAULT           ||
-                 iommu_trans_resp.fault_code == ST_ACCESS_FAULT           ||
-                 iommu_trans_resp.fault_code == MSI_PTE_LD_ACCESS_FAULT   ||
-                 iommu_trans_resp.fault_code == MSI_PTE_MISCONFIGURED     ||
-                 iommu_trans_resp.fault_code == PDT_ENTRY_LD_ACCESS_FAULT ||
-                 iommu_trans_resp.fault_code == PDT_ENTRY_MISCONFIGURED) begin
+              if(iommu_trans_resp_c.fault_code == INSTR_ACCESS_FAULT        ||
+                 iommu_trans_resp_c.fault_code == LD_ACCESS_FAULT           ||
+                 iommu_trans_resp_c.fault_code == ST_ACCESS_FAULT           ||
+                 iommu_trans_resp_c.fault_code == MSI_PTE_LD_ACCESS_FAULT   ||
+                 iommu_trans_resp_c.fault_code == MSI_PTE_MISCONFIGURED     ||
+                 iommu_trans_resp_c.fault_code == PDT_ENTRY_LD_ACCESS_FAULT ||
+                 iommu_trans_resp_c.fault_code == PDT_ENTRY_MISCONFIGURED) begin
                  dti_trans_fault.fault_type   = 2'b01;
-              end else if(iommu_trans_resp.fault_code == ALL_INB_TRANSACTIONS_DISALLOWED ||
-                          iommu_trans_resp.fault_code == DDT_ENTRY_LD_ACCESS_FAULT       ||
-                          iommu_trans_resp.fault_code == DDT_ENTRY_INVALID               ||
-                          iommu_trans_resp.fault_code == DDT_ENTRY_MISCONFIGURED         ||
-                          iommu_trans_resp.fault_code == TRANS_TYPE_DISALLOWED) begin
+              end else if(iommu_trans_resp_c.fault_code == ALL_INB_TRANSACTIONS_DISALLOWED ||
+                          iommu_trans_resp_c.fault_code == DDT_ENTRY_LD_ACCESS_FAULT       ||
+                          iommu_trans_resp_c.fault_code == DDT_ENTRY_INVALID               ||
+                          iommu_trans_resp_c.fault_code == DDT_ENTRY_MISCONFIGURED         ||
+                          iommu_trans_resp_c.fault_code == TRANS_TYPE_DISALLOWED) begin
                  dti_trans_fault.fault_type   = 2'b10;
-              end else if(trans_req.ssv && trans_req.PnU && iommu_trans_resp.u && !iommu_trans_resp.sum ||
-                          trans_req.ssv && !trans_req.PnU && !iommu_trans_resp.u ||
-                          iommu_trans_resp.x && !iommu_trans_resp.r              ||
-                          iommu_trans_resp.fault_code == INSTR_PAGE_FAULT        ||
-                          iommu_trans_resp.fault_code == LOAD_PAGE_FAULT         ||
-                          iommu_trans_resp.fault_code == STORE_PAGE_FAULT        ||
-                          iommu_trans_resp.fault_code == INSTR_GUEST_PAGE_FAULT  ||
-                          iommu_trans_resp.fault_code == LOAD_GUEST_PAGE_FAULT   ||
-                          iommu_trans_resp.fault_code == MSI_PTE_INVALID         ||
-                          iommu_trans_resp.fault_code == PDT_ENTRY_INVALID) begin
+              end else if(trans_req.ssv && trans_req.PnU && iommu_trans_resp_c.u && !iommu_trans_resp_c.sum ||
+                          trans_req.ssv && !trans_req.PnU && !iommu_trans_resp_c.u ||
+                          iommu_trans_resp_c.x && !iommu_trans_resp_c.r              ||
+                          iommu_trans_resp_c.fault_code == INSTR_PAGE_FAULT        ||
+                          iommu_trans_resp_c.fault_code == LOAD_PAGE_FAULT         ||
+                          iommu_trans_resp_c.fault_code == STORE_PAGE_FAULT        ||
+                          iommu_trans_resp_c.fault_code == INSTR_GUEST_PAGE_FAULT  ||
+                          iommu_trans_resp_c.fault_code == LOAD_GUEST_PAGE_FAULT   ||
+                          iommu_trans_resp_c.fault_code == MSI_PTE_INVALID         ||
+                          iommu_trans_resp_c.fault_code == PDT_ENTRY_INVALID) begin
                  dti_trans_fault.fault_type   = 2'b00;
               end
               up_msg_o = dti_payload_s'(dti_trans_fault);
@@ -215,19 +215,19 @@ module ats_dti_trans_cmd_fsm
               dti_trans_compl.s_msg_type   = DTI_ATS_TRANS_RESP;
               dti_trans_compl.trans_id_lsb = trans_req.trans_id_lsb;
               dti_trans_compl.trans_id_msb = trans_req.trans_id_msb;
-              dti_trans_compl.untrans      = iommu_trans_resp.is_mrif;
-              dti_trans_compl.CXL_IO       = !trans_req.CXL ? 1'b0 : iommu_trans_resp.is_mrif || iommu_trans_resp.t2gpa;
-              dti_trans_compl.bypass       = iommu_trans_resp.bypass;
+              dti_trans_compl.untrans      = iommu_trans_resp_c.is_mrif;
+              dti_trans_compl.CXL_IO       = !trans_req.CXL ? 1'b0 : iommu_trans_resp_c.is_mrif || iommu_trans_resp_c.t2gpa;
+              dti_trans_compl.bypass       = iommu_trans_resp_c.bypass;
               // Grant read permission if requested and granted by tl logic. if mrif, r,w,u = 1
-              dti_trans_compl.allow_r      = !iommu_trans_resp.is_mrif ? trans_req.nW && iommu_trans_resp.r : 1'b1;
+              dti_trans_compl.allow_r      = !iommu_trans_resp_c.is_mrif ? trans_req.nW && iommu_trans_resp_c.r : 1'b1;
               // Grant write permission if requested, granted by tl logic, and read is granted as well. if mrif, r,w,u = 1
-              dti_trans_compl.allow_w      = !iommu_trans_resp.is_mrif ? !trans_req.nW && iommu_trans_resp.w && iommu_trans_resp.r : 1'b1;
+              dti_trans_compl.allow_w      = !iommu_trans_resp_c.is_mrif ? !trans_req.nW && iommu_trans_resp_c.w && iommu_trans_resp_c.r : 1'b1;
               // Grant exe permission if requested, if read is granted, if InD=1 and X granted.
-              dti_trans_compl.allow_x      = iommu_trans_resp.r ? trans_req.InD && iommu_trans_resp.x : 1'b0;
+              dti_trans_compl.allow_x      = iommu_trans_resp_c.r ? trans_req.InD && iommu_trans_resp_c.x : 1'b0;
               dti_trans_compl.te           = t_bit_i; // ask Cristiano
-              dti_trans_compl.trans_rng    = iommu_trans_resp.range;
+              dti_trans_compl.trans_rng    = iommu_trans_resp_c.range;
               dti_trans_compl.AMA          = '0 ;
-              dti_trans_compl.OA           = {8'b0, iommu_trans_resp.spaddr[55:12]};
+              dti_trans_compl.OA           = {8'b0, iommu_trans_resp_c.spaddr[55:12]};
               up_msg_o = dti_payload_s'(dti_trans_compl);
               up_msg_valid_o = 1'b1;
               if(up_msg_ready_i) begin
