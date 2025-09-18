@@ -65,8 +65,6 @@ module ats_dti_trans_cmd_fsm
 
    logic [11:0] trans_id_n, trans_id_c;
 
-   logic sample_trans_rsp;
-
    typedef enum logic [1:0] {
      SEND_TRANS_REQ,
      WAIT_TRANS_RSP,
@@ -86,7 +84,6 @@ module ats_dti_trans_cmd_fsm
 
    assign fifo_push        = ~fifo_full && dn_msg_valid_i && dn_msg_ready_o;
    assign fifo_trans_req   = dti_ats_trans_req_s'(dn_msg_i);
-   assign sample_trans_rsp = iommu_to_dti_trans_valid_i && iommu_to_dti_trans_ready_o;
 
    // --------------------------------------------------------------
    // FIFO for buffering incoming input trans request from PCIe
@@ -141,6 +138,7 @@ module ats_dti_trans_cmd_fsm
       dti_trans_compl            = '0;
       dti_trans_fault            = '0;
       trans_rsp_ns               = trans_rsp_cs;
+      iommu_trans_resp_n         = iommu_trans_resp_c;
       trans_id_n                 = trans_id_c;
       if(link_status_i == CONNECTED) begin
          case(trans_rsp_cs)
@@ -164,6 +162,7 @@ module ats_dti_trans_cmd_fsm
            WAIT_TRANS_RSP: begin
               if(iommu_to_dti_trans_valid_i) begin
                  iommu_to_dti_trans_ready_o = 1'b1;
+                 iommu_trans_resp_n = iommu_to_dti_trans_resp_i;
                  if(iommu_to_dti_trans_resp_i.error)
                    trans_rsp_ns = SEND_FAULT;
                  else
@@ -252,11 +251,13 @@ module ats_dti_trans_cmd_fsm
       end
    end
 
-   always_ff @(posedge clk_i or negedge rst_ni or posedge sample_trans_rsp) begin
+   always_ff @(posedge clk_i or negedge rst_ni) begin
       if(~rst_ni) begin
-        iommu_trans_resp <= '0;
-      end else if(sample_trans_rsp) begin
-        iommu_trans_resp <= iommu_to_dti_trans_resp_i;
+        iommu_trans_resp_c <= '0;
+        trans_id_c         <= '0;
+      end else begin
+        iommu_trans_resp_c <= iommu_trans_resp_n;
+        trans_id_c         <= trans_id_n;
       end
    end
 
