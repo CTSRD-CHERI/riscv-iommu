@@ -675,6 +675,7 @@ module rv_iommu_top
        assign atsprgr_ready         = '0;
        assign pq_data               = '0;
        assign pq_valid              = '0;
+       assign ats_fence_ready       = '0;
 
     end
 

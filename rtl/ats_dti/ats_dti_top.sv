@@ -124,8 +124,7 @@ module dti_ats_top
    logic [3:0]  granted_inv_tok;
    logic [11:0] granted_trans_tok;
 
-   logic [31:0] frequency = FREQUENCY;
-
+   logic [31:0] frequency;
    logic        t_bit;
 
    dti_payload_s [NUM_CMD-1:0] up_msg_arb;
@@ -153,6 +152,8 @@ module dti_ats_top
    assign up_msg_inv_ready         = up_msg_ready_arb[INV];
    assign up_msg_trans_ready       = up_msg_ready_arb[TRANS];
    assign up_msg_page_ready        = up_msg_ready_arb[PAGE];
+
+   assign frequency = FREQUENCY;
 
    /////////////////////////
    //// Transport layer ////

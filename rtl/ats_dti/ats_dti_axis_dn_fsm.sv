@@ -92,9 +92,9 @@ module dti_ats_axis_dn_fsm
 
   always_ff @(posedge clk_i or negedge rst_ni) begin : dn_condis_req
      if(~rst_ni)
-       dn_msg_o = '0;
+       dn_msg_o <= '0;
      else if (axis_req_dn_i.tvalid && axis_rsp_dn_o.tready)
-       dn_msg_o = axis_req_dn_i.t.data;
+       dn_msg_o <= axis_req_dn_i.t.data;
   end
 
 endmodule
