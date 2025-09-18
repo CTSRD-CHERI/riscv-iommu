@@ -77,7 +77,7 @@ module ats_dti_trans_cmd_fsm
    dti_ats_trans_req_s   trans_req;
    dti_ats_trans_req_s   fifo_trans_req;
 
-   trans_resp_data_t     iommu_trans_resp;
+   trans_resp_data_t     iommu_trans_resp_c, iommu_trans_resp_n;
 
    dti_ats_trans_resp_s  dti_trans_compl;
    dti_ats_trans_fault_s dti_trans_fault;
