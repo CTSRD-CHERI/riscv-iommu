@@ -49,9 +49,9 @@ module dti_ats_axis_dn_fsm
   // State Transition Logic
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni)
-        current_state = IDLE;
+        current_state <= IDLE;
     else
-        current_state = next_state;
+        current_state <= next_state;
   end
 
   // Next State Logic
