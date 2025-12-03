@@ -19,6 +19,8 @@
 //              issued by software into the CQ
 
 module rv_iommu_cq_handler #(
+    parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
+
     /// AXI Full request struct type
     parameter type  axi_req_t       = logic,
     /// AXI Full response struct type
@@ -28,7 +30,7 @@ module rv_iommu_cq_handler #(
     input  logic rst_ni,
 
     // Regmap
-    input  logic [riscv::PPNW-1:0]  cq_base_ppn_i,      // Base address of the CQ in memory (Should be aligned. See Spec)
+    input  logic [CVA6Cfg.PPNW-1:0]  cq_base_ppn_i,      // Base address of the CQ in memory (Should be aligned. See Spec)
     input  logic [4:0]              cq_size_i,          // Size of the CQ as log2-1 (2 entries: 0 | 4 entries: 1 | 8 entries: 2 | ...)
 
     input  logic                    cq_en_i,            // CQ enable bit from cqcsr, handled by SW
@@ -73,7 +75,7 @@ module rv_iommu_cq_handler #(
     output logic                        flush_av_o,     // Address valid
     output logic                        flush_gv_o,     // GSCID valid
     output logic                        flush_pscv_o,   // PSCID valid
-    output logic [riscv::GPPNW-1:0]     flush_vpn_o,    // IOVA to tag entries to be flushed
+    output logic [CVA6Cfg.GPPNW-1:0]     flush_vpn_o,    // IOVA to tag entries to be flushed
     output logic [15:0]                 flush_gscid_o,  // GSCID (Guest physical address space identifier) to tag entries to be flushed
     output logic [19:0]                 flush_pscid_o,  // PSCID (Guest virtual address space identifier) to tag entries to be flushed
 
@@ -301,7 +303,7 @@ module rv_iommu_cq_handler #(
 
                         flush_av_o      = cmd_iotinval.av;
                         flush_gv_o      = cmd_iotinval.gv;
-                        flush_vpn_o     = cmd_iotinval.addr[riscv::GPPNW-1:0];    // ADDR[63:12]
+                        flush_vpn_o     = cmd_iotinval.addr[CVA6Cfg.GPPNW-1:0];    // ADDR[63:12]
                         flush_gscid_o   = cmd_iotinval.gscid;
                         flush_pscid_o   = cmd_iotinval.pscid;
 

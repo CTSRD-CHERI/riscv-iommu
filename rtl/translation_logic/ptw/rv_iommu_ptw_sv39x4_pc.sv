@@ -22,6 +22,7 @@
 //              Includes support for CDW implicit translations when walking the PDT.
 
 module rv_iommu_ptw_sv39x4_pc #(
+    parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
 
     // MSI translation support
     parameter rv_iommu::msi_trans_t MSITrans    = rv_iommu::MSI_DISABLED,
@@ -58,40 +59,40 @@ module rv_iommu_ptw_sv39x4_pc #(
     output logic                    up_1S_1G_o,
     output logic                    up_2S_2M_o,
     output logic                    up_2S_1G_o,
-    output logic [riscv::GPPNW-1:0] up_vpn_o,
+    output logic [CVA6Cfg.GPPNW-1:0] up_vpn_o,
     output logic [19:0]             up_pscid_o,
     output logic [15:0]             up_gscid_o,
     output riscv::pte_t             up_1S_content_o,
     output riscv::pte_t             up_2S_content_o,
 
     // IOTLB tags
-    input  logic [riscv::VLEN-1:0]  req_iova_i,
+    input  logic [CVA6Cfg.VLEN-1:0]  req_iova_i,
     input  logic [19:0]             pscid_i,
     input  logic [15:0]             gscid_i,
 
     // MSI translation
     input  logic                        msi_en_i,
-    input  logic [riscv::GPPNW-1:0]     msi_addr_mask_i,
-    input  logic [riscv::GPPNW-1:0]     msi_addr_pattern_i,
+    input  logic [CVA6Cfg.GPPNW-1:0]     msi_addr_mask_i,
+    input  logic [CVA6Cfg.GPPNW-1:0]     msi_addr_pattern_i,
 
     // Bus to send first-stage data to MSI PTW
     output logic                        gpaddr_is_msi_o,
-    output logic [riscv::GPPNW-1:0]     msi_vpn_o,
+    output logic [CVA6Cfg.GPPNW-1:0]     msi_vpn_o,
     output logic                        msi_1S_2M_o,
     output logic                        msi_1S_1G_o,
     output riscv::pte_t                 msi_gpte_o,
 
     // CDW implicit translations (Second-stage only)
     input  logic                        cdw_implicit_access_i,
-    input  logic [(riscv::GPPNW-1):0]   pdt_gppn_i,
+    input  logic [(CVA6Cfg.GPPNW-1):0]   pdt_gppn_i,
     output logic                        cdw_done_o,
     output logic                        flush_cdw_o,
 
     // from DC/PC
-    input  logic [riscv::PPNW-1:0]  iosatp_ppn_i,  // ppn from iosatp
-    input  logic [riscv::PPNW-1:0]  iohgatp_ppn_i, // ppn from iohgatp (may be forwarded by the CDW)
+    input  logic [CVA6Cfg.PPNW-1:0]  iosatp_ppn_i,  // ppn from iosatp
+    input  logic [CVA6Cfg.PPNW-1:0]  iohgatp_ppn_i, // ppn from iohgatp (may be forwarded by the CDW)
 
-    output logic [riscv::GPLEN-1:0] bad_gpaddr_o    // to return the GPA in case of second-stage error
+    output logic [CVA6Cfg.GPLEN-1:0] bad_gpaddr_o    // to return the GPA in case of second-stage error
 );
 
     // PTW states
@@ -128,13 +129,13 @@ module rv_iommu_ptw_sv39x4_pc #(
     // to register GSCID to be updated
     logic [15:0]  iotlb_update_gscid_q, iotlb_update_gscid_n;
     // to register the input GVA (VPNs). SV39x4 defines a 39 bit virtual address for first stage
-    logic [riscv::VLEN-1:0] iova_q,   iova_n;
+    logic [CVA6Cfg.VLEN-1:0] iova_q,   iova_n;
     // to register the final leaf GPA (GPPNs). SV39x4 defines a 41 bit GPA for second stage
-    logic [riscv::GPLEN-1:0] gpaddr_q, gpaddr_n;
+    logic [CVA6Cfg.GPLEN-1:0] gpaddr_q, gpaddr_n;
     // 4 byte aligned physical pointer
-    logic [riscv::PLEN-1:0] ptw_pptr_q, ptw_pptr_n;     // address used to access (read memory)
+    logic [CVA6Cfg.PLEN-1:0] ptw_pptr_q, ptw_pptr_n;     // address used to access (read memory)
     // To save GPA_n
-    logic [riscv::GPLEN-1:0] gpa_x_q, gpa_x_n;
+    logic [CVA6Cfg.GPLEN-1:0] gpa_x_q, gpa_x_n;
 
     // GPA is the address of a virtual IF
     logic gpaddr_is_msi;
@@ -143,7 +144,7 @@ module rv_iommu_ptw_sv39x4_pc #(
     logic cdw_implicit_access_q, cdw_implicit_access_n;
 
     // To save final GPA
-    logic [riscv::GPLEN-1:0] final_gpa;
+    logic [CVA6Cfg.GPLEN-1:0] final_gpa;
 
     // To signal page faults / guest page faults
     logic pf_excep_q, pf_excep_n;
@@ -181,11 +182,11 @@ module rv_iommu_ptw_sv39x4_pc #(
 
             // GPA is the address of a virtual interrupt file
             assign gpaddr_is_msi    = (msi_en_i && is_store_i &&
-                                        ((pte.ppn[riscv::GPPNW-1:0] & ~msi_addr_mask_i) == 
+                                        ((pte.ppn[CVA6Cfg.GPPNW-1:0] & ~msi_addr_mask_i) == 
                                          (msi_addr_pattern_i & ~msi_addr_mask_i)));
 
             // Bus to send first-stage data to MSI PTW                            
-            assign msi_vpn_o        = iova_q[riscv::SVX-1:12];
+            assign msi_vpn_o        = iova_q[CVA6Cfg.SVX-1:12];
             assign msi_1S_2M_o      = (main_lvl_q == LVL2);
             assign msi_1S_1G_o      = (main_lvl_q == LVL1);
             assign msi_gpte_o       = pte;
@@ -207,7 +208,7 @@ module rv_iommu_ptw_sv39x4_pc #(
     always_comb begin : iotlb_update
         
         // vpn to be updated in the IOTLB
-        up_vpn_o = iova_q[riscv::SVX-1:12];
+        up_vpn_o = iova_q[CVA6Cfg.SVX-1:12];
 
         up_1S_2M_o = 1'b0;
         up_1S_1G_o = 1'b0;
@@ -254,7 +255,7 @@ module rv_iommu_ptw_sv39x4_pc #(
 
     logic [(rv_iommu::CAUSE_LEN-1):0] cause_q, cause_n;
 
-    assign bad_gpaddr_o = ptw_error_2S_o ? ((ptw_stage_q == STAGE_2_INTERMED) ? gpa_x_q[riscv::GPLEN-1:0] : gpaddr_q) : '0;
+    assign bad_gpaddr_o = ptw_error_2S_o ? ((ptw_stage_q == STAGE_2_INTERMED) ? gpa_x_q[CVA6Cfg.GPLEN-1:0] : gpaddr_q) : '0;
 
     //# Page table walker
     always_comb begin : ptw
@@ -367,13 +368,13 @@ module rv_iommu_ptw_sv39x4_pc #(
                         
                             // Implicit second-stage address translation for CDW
                             if (!cdw_implicit_access_i) begin
-                                gpaddr_n = req_iova_i[riscv::SVX-1:0];
-                                ptw_pptr_n = {iohgatp_ppn_i[riscv::PPNW-1:2], req_iova_i[riscv::SVX-1:30], 3'b0};
+                                gpaddr_n = req_iova_i[CVA6Cfg.SVX-1:0];
+                                ptw_pptr_n = {iohgatp_ppn_i[CVA6Cfg.PPNW-1:2], req_iova_i[CVA6Cfg.SVX-1:30], 3'b0};
                             end
 
                             else begin
-                                gpaddr_n = {pdt_gppn_i[riscv::GPPNW-1:0], 12'b0};
-                                ptw_pptr_n = {iohgatp_ppn_i[riscv::PPNW-1:2], pdt_gppn_i[riscv::GPPNW-1:18], 3'b0};
+                                gpaddr_n = {pdt_gppn_i[CVA6Cfg.GPPNW-1:0], 12'b0};
+                                ptw_pptr_n = {iohgatp_ppn_i[CVA6Cfg.PPNW-1:2], pdt_gppn_i[CVA6Cfg.GPPNW-1:18], 3'b0};
                             end                    
                         end 
 
@@ -383,7 +384,7 @@ module rv_iommu_ptw_sv39x4_pc #(
                             ptw_stage_n = STAGE_1;
 
                             // pptr for S1-L1
-                            ptw_pptr_n  = {iosatp_ppn_i, req_iova_i[riscv::SV-1:30], 3'b0};
+                            ptw_pptr_n  = {iosatp_ppn_i, req_iova_i[CVA6Cfg.SV-1:30], 3'b0};
                         end
 
                         // Two-stage: start in S2-L1
@@ -392,11 +393,11 @@ module rv_iommu_ptw_sv39x4_pc #(
 
                             //# GPA_1
                             // Translate iosatp. Segments of the GVA are used as offset
-                            pptr[riscv::GPLEN-1:0] = {iosatp_ppn_i[riscv::GPPNW-1:0], req_iova_i[riscv::SV-1:30], 3'b0};
-                            gpa_x_n = pptr[riscv::GPLEN-1:0];
+                            pptr[CVA6Cfg.GPLEN-1:0] = {iosatp_ppn_i[CVA6Cfg.GPPNW-1:0], req_iova_i[CVA6Cfg.SV-1:30], 3'b0};
+                            gpa_x_n = pptr[CVA6Cfg.GPLEN-1:0];
 
                             // pptr for first S2-L1
-                            ptw_pptr_n = {iohgatp_ppn_i[riscv::PPNW-1:2], pptr[riscv::SVX-1:30], 3'b0};
+                            ptw_pptr_n = {iohgatp_ppn_i[CVA6Cfg.PPNW-1:2], pptr[CVA6Cfg.SVX-1:30], 3'b0};
                         end
 
                         // Both stages Bare (should never reach here)
@@ -409,7 +410,7 @@ module rv_iommu_ptw_sv39x4_pc #(
                     iotlb_update_pscid_n   = pscid_i;
                     iotlb_update_gscid_n   = gscid_i;
                     iova_n = (cdw_implicit_access_i                                ) ? 
-                             ({{riscv::VLEN-riscv::GPLEN{1'b0}}, pdt_gppn_i, 12'b0}) : 
+                             ({{CVA6Cfg.VLEN-CVA6Cfg.GPLEN{1'b0}}, pdt_gppn_i, 12'b0}) : 
                              (req_iova_i                                           );
                     cdw_implicit_access_n  = cdw_implicit_access_i;
                 end
@@ -456,7 +457,7 @@ module rv_iommu_ptw_sv39x4_pc #(
                                 STAGE_1: begin
 
                                     //# FINAL GPA
-                                    final_gpa = {pte.ppn[riscv::GPPNW-1:0], iova_q[11:0]};
+                                    final_gpa = {pte.ppn[CVA6Cfg.GPPNW-1:0], iova_q[11:0]};
 
                                     // update according to the size of the page
                                     if (main_lvl_q == LVL2)
@@ -481,7 +482,7 @@ module rv_iommu_ptw_sv39x4_pc #(
                                         ptw_stage_n = STAGE_2_FINAL;
 
                                         // pptr for final S2-L1
-                                        ptw_pptr_n = {iohgatp_ppn_i[riscv::PPNW-1:2], final_gpa[riscv::SVX-1:30], 3'b0};
+                                        ptw_pptr_n = {iohgatp_ppn_i[CVA6Cfg.PPNW-1:2], final_gpa[CVA6Cfg.SVX-1:30], 3'b0};
                                         main_lvl_n = LVL1;
                                     end
 
@@ -562,11 +563,11 @@ module rv_iommu_ptw_sv39x4_pc #(
                                             s1_lvl_n = LVL2;    // save first-stage level
 
                                             //# GPA_2
-                                            pptr[riscv::GPLEN-1:0] = {pte.ppn[riscv::GPPNW-1:0], iova_q[29:21], 3'b0};
-                                            gpa_x_n = pptr[riscv::GPLEN-1:0];
+                                            pptr[CVA6Cfg.GPLEN-1:0] = {pte.ppn[CVA6Cfg.GPPNW-1:0], iova_q[29:21], 3'b0};
+                                            gpa_x_n = pptr[CVA6Cfg.GPLEN-1:0];
 
                                             // pptr for second S2-L1
-                                            ptw_pptr_n = {iohgatp_ppn_i[riscv::PPNW-1:2], pptr[riscv::SVX-1:30], 3'b0};
+                                            ptw_pptr_n = {iohgatp_ppn_i[CVA6Cfg.PPNW-1:2], pptr[CVA6Cfg.SVX-1:30], 3'b0};
                                             // restart second-stage walk level
                                             main_lvl_n = LVL1;
                                         end 
@@ -607,11 +608,11 @@ module rv_iommu_ptw_sv39x4_pc #(
                                             s1_lvl_n = LVL3;
 
                                             //# GPA_3
-                                            pptr[riscv::GPLEN-1:0] = {pte.ppn[riscv::GPPNW-1:0], iova_q[20:12], 3'b0};
-                                            gpa_x_n = pptr[riscv::GPLEN-1:0];
+                                            pptr[CVA6Cfg.GPLEN-1:0] = {pte.ppn[CVA6Cfg.GPPNW-1:0], iova_q[20:12], 3'b0};
+                                            gpa_x_n = pptr[CVA6Cfg.GPLEN-1:0];
 
                                             // pptr for third S2-L1
-                                            ptw_pptr_n = {iohgatp_ppn_i[riscv::PPNW-1:2], pptr[riscv::SVX-1:30], 3'b0};
+                                            ptw_pptr_n = {iohgatp_ppn_i[CVA6Cfg.PPNW-1:2], pptr[CVA6Cfg.SVX-1:30], 3'b0};
                                             // restart second-stage walk level
                                             main_lvl_n = LVL1;
                                         end 
@@ -668,7 +669,7 @@ module rv_iommu_ptw_sv39x4_pc #(
                     end
 
                     // "For Sv39x4 (...) GPA's bits 63:41 must all be zeros, or else a guest-page-fault exception occurs."
-                    if (ptw_stage_q == STAGE_1 && (|pte.ppn[riscv::PPNW-1:riscv::GPPNW]) != 1'b0) begin
+                    if (ptw_stage_q == STAGE_1 && (|pte.ppn[CVA6Cfg.PPNW-1:CVA6Cfg.GPPNW]) != 1'b0) begin
                         pf_excep_n    = 1'b1;
                         state_n         = ERROR;  // GPPN bits [44:29] MUST be all zero
                         ptw_stage_n     = STAGE_2_INTERMED;    // to throw guest page fault

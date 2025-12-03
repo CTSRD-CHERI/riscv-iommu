@@ -33,6 +33,7 @@
 */
 
 module rv_iommu_msiptw #(
+    parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
 
     // MSI translation support
     parameter rv_iommu::msi_trans_t MSITrans    = rv_iommu::MSI_DISABLED,
@@ -57,14 +58,14 @@ module rv_iommu_msiptw #(
     output logic ignore_o,
 
     // Request IOVA
-    input  logic [riscv::VLEN-1:0]      req_iova_i,
+    input  logic [CVA6Cfg.VLEN-1:0]      req_iova_i,
     // First-stage translation enable
     input  logic                        en_1S_i,
     // The translation is read-for-execute
     input  logic                        is_rx_i,
 
     // First-stage data provided by PTW
-    input  logic [(riscv::GPPNW-1):0]   vpn_i,
+    input  logic [(CVA6Cfg.GPPNW-1):0]   vpn_i,
     input  logic [19:0]                 pscid_i,
     input  logic [15:0]                 gscid_i,
     input  logic                        is_1S_2M_i,
@@ -72,12 +73,12 @@ module rv_iommu_msiptw #(
     input  riscv::pte_t                 gpte_i,
 
     // MSI PT base PPN
-    input  logic [(riscv::PPNW-1):0]    msiptp_ppn_i,
+    input  logic [(CVA6Cfg.PPNW-1):0]    msiptp_ppn_i,
     // MSI address mask
-    input  logic [riscv::GPPNW-1:0]     msi_addr_mask_i,
+    input  logic [CVA6Cfg.GPPNW-1:0]     msi_addr_mask_i,
 
     // Generic update ports
-    output logic [(riscv::GPPNW-1):0]   vpn_o,
+    output logic [(CVA6Cfg.GPPNW-1):0]   vpn_o,
     output logic [19:0]                 pscid_o,
     output logic [15:0]                 gscid_o,
     output logic                        is_1S_2M_o,
@@ -125,7 +126,7 @@ module rv_iommu_msiptw #(
     logic init_msi_mrif;
 
     // Registers to propagate first-stage data
-    logic [(riscv::GPPNW-1):0]   vpn_q,         vpn_n;
+    logic [(CVA6Cfg.GPPNW-1):0]   vpn_q,         vpn_n;
     logic [19:0]                 pscid_q,       pscid_n;
     logic [15:0]                 gscid_q,       gscid_n;
     logic                        is_1S_2M_q,    is_1S_2M_n;
@@ -235,11 +236,11 @@ module rv_iommu_msiptw #(
                         // First-stage translation enabled. Tags come from PTW. Propagate first-stage data
                         if (en_1S_i) begin
                             
-                            automatic logic [riscv::GPPNW-1:0] imsic_num;
-                            imsic_num = rv_iommu::extract_imsic_num(gpte_i.ppn[(riscv::GPPNW-1):0], msi_addr_mask_i);
+                            automatic logic [CVA6Cfg.GPPNW-1:0] imsic_num;
+                            imsic_num = rv_iommu::extract_imsic_num(gpte_i.ppn[(CVA6Cfg.GPPNW-1):0], msi_addr_mask_i);
 
                             pptr_n      = {msiptp_ppn_i, 12'b0} | 
-                                            ({{riscv::PLEN-riscv::GPPNW{1'b0}}, imsic_num} << 4);
+                                            ({{riscv::PLEN-CVA6Cfg.GPPNW{1'b0}}, imsic_num} << 4);
 
                             // First-stage parameters
                             vpn_n       = vpn_i;        // GVA
@@ -251,14 +252,14 @@ module rv_iommu_msiptw #(
                         // First-stage translation disabled. Tags come directly from translation logic
                         else begin
                             
-                            automatic logic [riscv::GPPNW-1:0] imsic_num;
-                            imsic_num = rv_iommu::extract_imsic_num(req_iova_i[(riscv::GPLEN-1):12], msi_addr_mask_i);
+                            automatic logic [CVA6Cfg.GPPNW-1:0] imsic_num;
+                            imsic_num = rv_iommu::extract_imsic_num(req_iova_i[(CVA6Cfg.GPLEN-1):12], msi_addr_mask_i);
 
                             pptr_n      = {msiptp_ppn_i, 12'b0} | 
-                                            ({{riscv::PLEN-riscv::GPPNW{1'b0}}, imsic_num} << 4);
+                                            ({{riscv::PLEN-CVA6Cfg.GPPNW{1'b0}}, imsic_num} << 4);
 
                             // First-stage parameters
-                            vpn_n       = req_iova_i[(riscv::GPLEN-1):12];  // GPA
+                            vpn_n       = req_iova_i[(CVA6Cfg.GPLEN-1):12];  // GPA
                             is_1S_2M_n  = 1'b0;
                             is_1S_1G_n  = 1'b0;
                             gpte_n      = '0;

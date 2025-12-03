@@ -31,6 +31,8 @@
 */
 
 module rv_iommu_mrifc #(
+    parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
+
     parameter int unsigned  MRIFC_ENTRIES    = 4
 )(
     input  logic            clk_i,          // Clock
@@ -42,7 +44,7 @@ module rv_iommu_mrifc #(
     input  logic                    flush_av_i,       // ADDR tag filtering
     input  logic                    flush_gv_i,       // GSCID tag filtering
     input  logic                    flush_pscv_i,     // PSCID tag filtering
-    input  logic [riscv::GPPNW-1:0] flush_vpn_i,      // VPN/GPPN to be flushed
+    input  logic [CVA6Cfg.GPPNW-1:0] flush_vpn_i,      // VPN/GPPN to be flushed
     input  logic [15:0]             flush_gscid_i,    // GSCID to be flushed
     input  logic [19:0]             flush_pscid_i,    // PSCID to be flushed
 
@@ -50,7 +52,7 @@ module rv_iommu_mrifc #(
     input  logic                    update_i,
     input  logic                    up_1S_2M_i,
     input  logic                    up_1S_1G_i,
-    input  logic [riscv::GPPNW-1:0] up_vpn_i,
+    input  logic [CVA6Cfg.GPPNW-1:0] up_vpn_i,
     input  logic [19:0]             up_pscid_i,
     input  logic [15:0]             up_gscid_i,
     input  riscv::pte_t             up_1S_content_i,
@@ -58,7 +60,7 @@ module rv_iommu_mrifc #(
 
     // Lookup signals
     input  logic                    lookup_i,           // lookup flag
-    input  logic [riscv::VLEN-1:0]  lu_iova_i,          // IOVA to look for 
+    input  logic [CVA6Cfg.VLEN-1:0]  lu_iova_i,          // IOVA to look for 
     input  logic [19:0]             lu_pscid_i,         // PSCID to look for
     input  logic [15:0]             lu_gscid_i,         // GSCID to look for
     input  logic                    en_1S_i,            // first-stage enabled
@@ -173,7 +175,7 @@ module rv_iommu_mrifc #(
 
         This implementation assumes the HW cost and performs the IOTINVAL.GVMA completely.
     */
-    logic  [MRIFC_ENTRIES-1:0] [(riscv::GPPNW-1):0] gppn;
+    logic  [MRIFC_ENTRIES-1:0] [(CVA6Cfg.GPPNW-1):0] gppn;
 
     always_comb begin : update_flush
 

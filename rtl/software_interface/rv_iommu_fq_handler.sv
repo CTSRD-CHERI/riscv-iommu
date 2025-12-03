@@ -33,6 +33,8 @@
 */
 
 module rv_iommu_fq_handler #(
+    parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
+
     /// AXI Full request struct type
     parameter type  axi_req_t       = logic,
     /// AXI Full response struct type
@@ -42,7 +44,7 @@ module rv_iommu_fq_handler #(
     input  logic rst_ni,
 
     // Regmap
-    input  logic [riscv::PPNW-1:0]  fq_base_ppn_i,      // Base address of the FQ in memory (Should be aligned. See Spec)
+    input  logic [CVA6Cfg.PPNW-1:0]  fq_base_ppn_i,      // Base address of the FQ in memory (Should be aligned. See Spec)
     input  logic [4:0]              fq_size_i,          // Size of the FQ as log2-1 (2 entries: 0 | 4 entries: 1 | 8 entries: 2 | ...)
 
     input  logic                    fq_en_i,            // FQ enable bit from fqcsr, handled by SW
@@ -69,8 +71,8 @@ module rv_iommu_fq_handler #(
     input  logic                                event_valid_i,      // a fault/event has occurred
     input  logic [rv_iommu::TTYP_LEN-1:0]       trans_type_i,       // transaction type
     input  logic [(rv_iommu::CAUSE_LEN-1):0]    cause_code_i,       // Fault code as defined by IOMMU and Priv Spec
-    input  logic [riscv::VLEN-1:0]              iova_i,             // to report if transaction has an IOVA
-    input  logic [riscv::SVX-1:0]               gpaddr_i,           // to report bits [63:2] of the GPA in case of a Guest Page Fault
+    input  logic [CVA6Cfg.VLEN-1:0]              iova_i,             // to report if transaction has an IOVA
+    input  logic [CVA6Cfg.SVX-1:0]               gpaddr_i,           // to report bits [63:2] of the GPA in case of a Guest Page Fault
     input  logic [23:0]                         did_i,              // device_id associated with the transaction
     input  logic                                pv_i,               // to indicate if transaction has a valid process_id
     input  logic [19:0]                         pid_i,              // process_id associated with the transaction
@@ -135,8 +137,8 @@ module rv_iommu_fq_handler #(
     // Wires to connect FIFO output
     logic [rv_iommu::TTYP_LEN-1:0]      trans_type;   
     logic [(rv_iommu::CAUSE_LEN-1):0]   cause_code;   
-    logic [riscv::VLEN-1:0]             iova;         
-    logic [riscv::SVX-1:0]              gpaddr;       
+    logic [CVA6Cfg.VLEN-1:0]             iova;         
+    logic [CVA6Cfg.SVX-1:0]              gpaddr;       
     logic [23:0]                        did;          
     logic                               pv;           
     logic [19:0]                        pid;          
@@ -153,7 +155,7 @@ module rv_iommu_fq_handler #(
     fifo_v3 #(
         .FALL_THROUGH   (1),
         .DEPTH          (4),
-        .DATA_WIDTH     (rv_iommu::TTYP_LEN + rv_iommu::CAUSE_LEN + riscv::VLEN + riscv::SVX + 24 + 20 + 4)
+        .DATA_WIDTH     (rv_iommu::TTYP_LEN + rv_iommu::CAUSE_LEN + CVA6Cfg.VLEN + CVA6Cfg.SVX + 24 + 20 + 4)
     ) i_fifo_fq (
         .clk_i      ( clk_i           ),
         .rst_ni     ( rst_ni          ),

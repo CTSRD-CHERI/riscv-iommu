@@ -19,6 +19,7 @@
 //              This module walks memory to locate DCs, PCs, and updates the corresponding cache.
 
 module rv_iommu_cdw_pc #(
+    parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
 
     // MSI translation support
     parameter rv_iommu::msi_trans_t MSITrans    = rv_iommu::MSI_DISABLED,
@@ -80,22 +81,22 @@ module rv_iommu_cdw_pc #(
     input  logic                    pdtc_hit_i,
 
     // from regmap
-    input  logic [riscv::PPNW-1:0]  ddtp_ppn_i,     // PPN from ddtp register
+    input  logic [CVA6Cfg.PPNW-1:0]  ddtp_ppn_i,     // PPN from ddtp register
     input  logic [3:0]              ddtp_mode_i,    // DDT levels and IOMMU mode
 
     // from DC (for PC walks)
     input  logic                    en_stage2_i,    // Second-stage translation is enabled
-    input  logic [riscv::PPNW-1:0]  pdtp_ppn_i,     // PPN from DC.fsc.PPN
+    input  logic [CVA6Cfg.PPNW-1:0]  pdtp_ppn_i,     // PPN from DC.fsc.PPN
     input  logic [3:0]              pdtp_mode_i,    // PDT levels from DC.fsc.MODE
 
     // CDW implicit translations (Second-stage only)
     input  logic                        ptw_done_i,
     input  logic                        flush_i,
-    input  logic [riscv::PPNW-1:0]      pdt_ppn_i,
+    input  logic [CVA6Cfg.PPNW-1:0]      pdt_ppn_i,
     output logic                        cdw_implicit_access_o,
     output logic                        is_ddt_walk_o,
-    output logic [(riscv::GPPNW-1):0]   pdt_gppn_o,
-    output logic [riscv::PPNW-1:0]      iohgatp_ppn_fw_o  // to forward iohgatp.PPN to PTW when translating pdtp.PPN
+    output logic [(CVA6Cfg.GPPNW-1):0]   pdt_gppn_o,
+    output logic [CVA6Cfg.PPNW-1:0]      iohgatp_ppn_fw_o  // to forward iohgatp.PPN to PTW when translating pdtp.PPN
 );
 
     // Save and propagate the input device_id/process id to walk multiple levels
@@ -163,7 +164,7 @@ module rv_iommu_cdw_pc #(
     logic is_ddt_walk_q, is_ddt_walk_n;
 
     // Physical pointer to access memory bus
-    logic [riscv::PLEN-1:0] cdw_pptr_q, cdw_pptr_n;
+    logic [CVA6Cfg.PLEN-1:0] cdw_pptr_q, cdw_pptr_n;
 
     // Last DDT/PDT level
     logic is_last_cdw_lvl;
@@ -669,7 +670,7 @@ module rv_iommu_cdw_pc #(
                         // Set pdt_ppn with nl.ppn and trigger PTW
                         // NON_LEAF waits for the translation to be completed
                         else begin
-                            pdt_gppn_o = nl.ppn[(riscv::GPPNW-1):0];
+                            pdt_gppn_o = nl.ppn[(CVA6Cfg.GPPNW-1):0];
                             cdw_implicit_access_o = 1'b1;
                             state_n = NON_LEAF;
                         end
@@ -680,7 +681,7 @@ module rv_iommu_cdw_pc #(
                 else begin
 
                     // Set pdt_ppn with DC.fsc.PPN (pdtp.ppn) and trigger PTW
-                    pdt_gppn_o = dc_fsc_q.ppn[(riscv::GPPNW-1):0];
+                    pdt_gppn_o = dc_fsc_q.ppn[(CVA6Cfg.GPPNW-1):0];
                     iohgatp_ppn_fw_o = dc_iohgatp_q.ppn;
                     cdw_implicit_access_o = 1'b1;
                     state_n = LEAF;

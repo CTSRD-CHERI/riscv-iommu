@@ -20,11 +20,13 @@
 
 /* verilator lint_off WIDTH */
 
-module rv_iommu_axi4_bc (
+module rv_iommu_axi4_bc #(
+    parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty
+) (
     // AxVALID
     input  logic                    request_i,
     // AxADDR
-    input  logic [riscv::VLEN-1:0]  addr_i,
+    input  logic [CVA6Cfg.VLEN-1:0]  addr_i,
     // AxBURST
     input  axi_pkg::burst_t         burst_type_i,
     // AxLEN

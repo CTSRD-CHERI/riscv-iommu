@@ -19,6 +19,7 @@
 //              This module walks memory to locate DCs and updates the corresponding cache.
 
 module rv_iommu_cdw #(
+    parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
 
     // MSI translation support
     parameter rv_iommu::msi_trans_t MSITrans    = rv_iommu::MSI_DISABLED,
@@ -69,7 +70,7 @@ module rv_iommu_cdw #(
     input  logic                    init_cdw_i,
 
     // from regmap
-    input  logic [riscv::PPNW-1:0]  ddtp_ppn_i,     // PPN from ddtp register
+    input  logic [CVA6Cfg.PPNW-1:0]  ddtp_ppn_i,     // PPN from ddtp register
     input  logic [3:0]              ddtp_mode_i     // DDT levels and IOMMU mode
 );
 
@@ -119,7 +120,7 @@ module rv_iommu_cdw #(
     level_t cdw_lvl_q, cdw_lvl_n;
 
     // Physical pointer to access memory bus
-    logic [riscv::PLEN-1:0] cdw_pptr_q, cdw_pptr_n;
+    logic [CVA6Cfg.PLEN-1:0] cdw_pptr_q, cdw_pptr_n;
 
     // Last DDT/PDT level
     logic is_last_cdw_lvl;
