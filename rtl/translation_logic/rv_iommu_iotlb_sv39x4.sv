@@ -21,7 +21,9 @@
 //              by Florian Zaruba and David Schaffenrath to the Sv39x4 standard.
 //              Each entry groups first-stage and second-stage PTE data. Second-stage data may be an MSI mapping.
 
-module rv_iommu_iotlb_sv39x4 #(
+module rv_iommu_iotlb_sv39x4
+  import ariane_pkg::*;
+#(
     parameter config_pkg::cva6_cfg_t CVA6Cfg = config_pkg::cva6_cfg_empty,
 
     parameter int unsigned IOTLB_ENTRIES = 4
