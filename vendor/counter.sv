@@ -17,12 +17,12 @@ module counter #(
 )(
     input  logic             clk_i,
     input  logic             rst_ni,
-    input  logic             clear_i, // synchronous clear
-    input  logic             en_i,    // enable the counter
-    input  logic             load_i,  // load a new value
-    input  logic             down_i,  // downcount, default is up
-    input  logic [WIDTH-1:0] d_i,
-    output logic [WIDTH-1:0] q_o,
+    (* dont_touch = "yes" *) (* mark_debug = "true" *) input  logic             clear_i, // synchronous clear
+    (* dont_touch = "yes" *) (* mark_debug = "true" *) input  logic             en_i,    // enable the counter
+    (* dont_touch = "yes" *) (* mark_debug = "true" *) input  logic             load_i,  // load a new value
+    (* dont_touch = "yes" *) (* mark_debug = "true" *) input  logic             down_i,  // downcount, default is up
+    (* dont_touch = "yes" *) (* mark_debug = "true" *) input  logic [WIDTH-1:0] d_i,
+    (* dont_touch = "yes" *) (* mark_debug = "true" *) output logic [WIDTH-1:0] q_o,
     output logic             overflow_o
 );
     delta_counter #(
